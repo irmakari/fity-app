@@ -8,6 +8,7 @@ const errorHandler = require('./middleware/errorHandler');
 const authRoutes = require('./routes/authRoutes');
 const profileRoutes = require('./routes/profileRoutes');
 const onboardingRoutes = require('./routes/onboardingRoutes');
+const hydrationRoutes = require('./routes/hydrationRoutes');
 
 const app = express();
 
@@ -62,6 +63,9 @@ app.use('/api/profile', profileRoutes);
 
 // Onboarding routes
 app.use('/api/onboarding', onboardingRoutes);
+
+// Hydration routes
+app.use('/api/hydration', hydrationRoutes);
 
 // 404 handler
 app.all('*', (req, res) => {
