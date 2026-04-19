@@ -11,7 +11,10 @@ const exerciseSchema = new mongoose.Schema(
     muscleGroup: {
       type: String,
       required: [true, 'Muscle group is required.'],
-      trim: true,
+      enum: {
+        values: ['chest', 'back', 'legs', 'arms', 'shoulders', 'core', 'cardio', 'full_body'],
+        message: '{VALUE} is not a valid muscle group.',
+      },
     },
     description: {
       type: String,

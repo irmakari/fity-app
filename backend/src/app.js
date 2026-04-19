@@ -8,6 +8,10 @@ const errorHandler = require('./middleware/errorHandler');
 const authRoutes = require('./routes/authRoutes');
 const profileRoutes = require('./routes/profileRoutes');
 const onboardingRoutes = require('./routes/onboardingRoutes');
+const exerciseRoutes = require('./routes/exerciseRoutes');
+const workoutPlanRoutes = require('./routes/workoutPlanRoutes');
+const workoutSessionRoutes = require('./routes/workoutSessionRoutes');
+const workoutExerciseStatusRoutes = require('./routes/workoutExerciseStatusRoutes');
 
 const app = express();
 
@@ -62,6 +66,18 @@ app.use('/api/profile', profileRoutes);
 
 // Onboarding routes
 app.use('/api/onboarding', onboardingRoutes);
+
+// Exercise routes
+app.use('/api/exercises', exerciseRoutes);
+
+// Workout plan routes
+app.use('/api/workout-plans', workoutPlanRoutes);
+
+// Workout session routes
+app.use('/api/workout-sessions', workoutSessionRoutes);
+
+// Workout exercise status routes
+app.use('/api/workout-exercise-status', workoutExerciseStatusRoutes);
 
 // 404 handler
 app.all('*', (req, res) => {

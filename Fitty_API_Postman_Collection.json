@@ -14,6 +14,21 @@
       "key": "resetToken",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "exerciseId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "workoutPlanId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "sessionId",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -346,6 +361,474 @@
               "host": ["localhost"],
               "port": "5000",
               "path": ["api", "onboarding", "complete"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Exercises",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "Get All Exercises",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:5000/api/exercises",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "exercises"]
+            }
+          }
+        },
+        {
+          "name": "Get Exercises by Muscle Group",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:5000/api/exercises?muscleGroup=chest",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "exercises"],
+              "query": [
+                {
+                  "key": "muscleGroup",
+                  "value": "chest"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Exercise by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:5000/api/exercises/{{exerciseId}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "exercises", "{{exerciseId}}"]
+            }
+          }
+        },
+        {
+          "name": "Create Exercise",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success && jsonData.data && jsonData.data.exercise) {",
+                  "    pm.collectionVariables.set(\"exerciseId\", jsonData.data.exercise._id);",
+                  "    console.log(\"exerciseId saved:\", jsonData.data.exercise._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bench Press\",\n  \"muscleGroup\": \"chest\",\n  \"description\": \"Flat bench barbell press\",\n  \"videoUrl\": \"\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/api/exercises",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "exercises"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Workout Plans",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "Get All Workout Plans",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:5000/api/workout-plans",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "workout-plans"]
+            }
+          }
+        },
+        {
+          "name": "Get Workout Plan by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:5000/api/workout-plans/{{workoutPlanId}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "workout-plans", "{{workoutPlanId}}"]
+            }
+          }
+        },
+        {
+          "name": "Create Workout Plan",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success && jsonData.data && jsonData.data.plan) {",
+                  "    pm.collectionVariables.set(\"workoutPlanId\", jsonData.data.plan._id);",
+                  "    console.log(\"workoutPlanId saved:\", jsonData.data.plan._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Push Day\",\n  \"dayLabel\": \"Monday\",\n  \"targetMuscles\": [\"chest\", \"shoulders\", \"triceps\"],\n  \"estimatedDurationMin\": 60,\n  \"exercises\": [\n    {\n      \"exerciseId\": \"{{exerciseId}}\",\n      \"sets\": 4,\n      \"reps\": 10,\n      \"restSeconds\": 90,\n      \"orderIndex\": 0\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/api/workout-plans",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "workout-plans"]
+            }
+          }
+        },
+        {
+          "name": "Update Workout Plan",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Push Day Updated\",\n  \"estimatedDurationMin\": 75\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/api/workout-plans/{{workoutPlanId}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "workout-plans", "{{workoutPlanId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Workout Plan",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:5000/api/workout-plans/{{workoutPlanId}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "workout-plans", "{{workoutPlanId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Workout Sessions",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "Start Session",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success && jsonData.data && jsonData.data.session) {",
+                  "    pm.collectionVariables.set(\"sessionId\", jsonData.data.session._id);",
+                  "    console.log(\"sessionId saved:\", jsonData.data.session._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"workoutPlanId\": \"{{workoutPlanId}}\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/api/workout-sessions",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "workout-sessions"]
+            }
+          }
+        },
+        {
+          "name": "Get My Sessions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:5000/api/workout-sessions",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "workout-sessions"]
+            }
+          }
+        },
+        {
+          "name": "Get Session by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:5000/api/workout-sessions/{{sessionId}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "workout-sessions", "{{sessionId}}"]
+            }
+          }
+        },
+        {
+          "name": "Finish Session",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"completed\",\n  \"totalDurationSec\": 3600,\n  \"caloriesBurned\": 350\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/api/workout-sessions/{{sessionId}}/finish",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "workout-sessions", "{{sessionId}}", "finish"]
+            }
+          }
+        },
+        {
+          "name": "Cancel Session",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"cancelled\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/api/workout-sessions/{{sessionId}}/finish",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "workout-sessions", "{{sessionId}}", "finish"]
+            }
+          }
+        },
+        {
+          "name": "Log Set",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"exerciseId\": \"{{exerciseId}}\",\n  \"setNumber\": 1,\n  \"repsCompleted\": 10,\n  \"restSkipped\": false\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/api/workout-sessions/{{sessionId}}/sets",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "workout-sessions", "{{sessionId}}", "sets"]
+            }
+          }
+        },
+        {
+          "name": "Get Session Sets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:5000/api/workout-sessions/{{sessionId}}/sets",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "workout-sessions", "{{sessionId}}", "sets"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Workout Exercise Status",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "Log Exercise Status",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"workoutPlanId\": \"{{workoutPlanId}}\",\n  \"exerciseId\": \"{{exerciseId}}\",\n  \"date\": \"2026-04-16\",\n  \"isCompleted\": true,\n  \"hasDiscomfort\": false,\n  \"note\": \"Felt strong today.\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/api/workout-exercise-status",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "workout-exercise-status"]
+            }
+          }
+        },
+        {
+          "name": "Get Exercise Statuses",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:5000/api/workout-exercise-status?date=2026-04-16&workoutPlanId={{workoutPlanId}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "workout-exercise-status"],
+              "query": [
+                {
+                  "key": "date",
+                  "value": "2026-04-16"
+                },
+                {
+                  "key": "workoutPlanId",
+                  "value": "{{workoutPlanId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Exercise Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isCompleted\": true,\n  \"hasDiscomfort\": true,\n  \"note\": \"Felt slight knee pain on squats.\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/api/workout-exercise-status/REPLACE_WITH_STATUS_ID",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "workout-exercise-status", "REPLACE_WITH_STATUS_ID"]
             }
           }
         }
