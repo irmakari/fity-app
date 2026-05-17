@@ -9,6 +9,10 @@ const authRoutes = require('./routes/authRoutes');
 const profileRoutes = require('./routes/profileRoutes');
 const onboardingRoutes = require('./routes/onboardingRoutes');
 const hydrationRoutes = require('./routes/hydrationRoutes');
+const exerciseRoutes = require('./routes/exerciseRoutes');
+const workoutPlanRoutes = require('./routes/workoutPlanRoutes');
+const workoutSessionRoutes = require('./routes/workoutSessionRoutes');
+const workoutExerciseStatusRoutes = require('./routes/workoutExerciseStatusRoutes');
 
 const app = express();
 
@@ -66,6 +70,18 @@ app.use('/api/onboarding', onboardingRoutes);
 
 // Hydration routes
 app.use('/api/hydration', hydrationRoutes);
+
+// Exercise routes
+app.use('/api/exercises', exerciseRoutes);
+
+// Workout plan routes
+app.use('/api/workout-plans', workoutPlanRoutes);
+
+// Workout session routes
+app.use('/api/workout-sessions', workoutSessionRoutes);
+
+// Workout exercise status routes
+app.use('/api/workout-exercise-status', workoutExerciseStatusRoutes);
 
 // 404 handler
 app.all('*', (req, res) => {

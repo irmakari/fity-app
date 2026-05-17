@@ -1,5 +1,36 @@
 const mongoose = require('mongoose');
 
+const planExerciseSchema = new mongoose.Schema(
+  {
+    exerciseId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Exercise',
+      required: [true, 'Exercise ID is required.'],
+    },
+    sets: {
+      type: Number,
+      required: [true, 'Sets is required.'],
+      min: [1, 'Sets must be at least 1.'],
+    },
+    reps: {
+      type: Number,
+      required: [true, 'Reps is required.'],
+      min: [1, 'Reps must be at least 1.'],
+    },
+    restSeconds: {
+      type: Number,
+      required: [true, 'Rest seconds is required.'],
+      min: [0, 'Rest seconds cannot be negative.'],
+    },
+    orderIndex: {
+      type: Number,
+      required: [true, 'Order index is required.'],
+      min: [0, 'Order index cannot be negative.'],
+    },
+  },
+  { _id: false }
+);
+
 const workoutPlanSchema = new mongoose.Schema(
   {
     name: {
@@ -10,7 +41,6 @@ const workoutPlanSchema = new mongoose.Schema(
     },
     dayLabel: {
       type: String,
-      required: [true, 'Day label is required.'],
       trim: true,
     },
     targetMuscles: {
@@ -21,12 +51,13 @@ const workoutPlanSchema = new mongoose.Schema(
       type: Number,
       min: [1, 'Estimated duration must be at least 1 minute.'],
     },
-    exercises: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Exercise',
-      },
-    ],
+    exercises: {
+      type: [planExerciseSchema],
+      default: [],
+    },
+    createdAt: {
+      type: Date,
+    },
   },
   {
     timestamps: true,
