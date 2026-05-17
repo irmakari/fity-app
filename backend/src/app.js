@@ -13,6 +13,9 @@ const exerciseRoutes = require('./routes/exerciseRoutes');
 const workoutPlanRoutes = require('./routes/workoutPlanRoutes');
 const workoutSessionRoutes = require('./routes/workoutSessionRoutes');
 const workoutExerciseStatusRoutes = require('./routes/workoutExerciseStatusRoutes');
+const foodRoutes = require('./routes/foodRoutes');
+const mealLogRoutes = require('./routes/mealLogRoutes');
+const snackRoutes = require('./routes/snackRoutes');
 
 const app = express();
 
@@ -82,6 +85,15 @@ app.use('/api/workout-sessions', workoutSessionRoutes);
 
 // Workout exercise status routes
 app.use('/api/workout-exercise-status', workoutExerciseStatusRoutes);
+
+// Food routes (hybrid search: DB → Open Food Facts → Gemini AI)
+app.use('/api/foods', foodRoutes);
+
+// Snack AI routes
+app.use('/api/snack', snackRoutes);
+
+// Meal log routes
+app.use('/api/meal-logs', mealLogRoutes);
 
 // 404 handler
 app.all('*', (req, res) => {

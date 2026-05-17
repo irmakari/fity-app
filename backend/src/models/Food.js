@@ -38,6 +38,11 @@ const foodSchema = new mongoose.Schema(
       min: [0, 'Serving size cannot be negative.'],
       default: 1,
     },
+    source: {
+      type: String,
+      enum: ['manual', 'open_food_facts', 'ai'],
+      default: 'manual',
+    },
   },
   {
     timestamps: true,
