@@ -1,0 +1,474 @@
+{
+  "users": [
+    {
+      "id": "1",
+      "email": "test@fity.com",
+      "password": "123456",
+      "name": "Irmak",
+      "weeklyWorkoutTarget": 3,
+      "trainingLocation": "gym",
+      "focusMuscles": "Upper Body"
+    }
+  ],
+  "todayPlan": [
+    {
+      "id": "1",
+      "userId": 1,
+      "hydration": {
+        "title": "Hydration",
+        "current": 1.2,
+        "target": 2,
+        "unit": "L",
+        "progress": 0.6
+      },
+      "workout": {
+        "title": "Leg workout",
+        "completedMinutes": 15,
+        "totalMinutes": 25,
+        "remainingExercises": 2,
+        "progress": 0.6
+      },
+      "nutrition": {
+        "title": "Nutrition",
+        "currentCalories": 1300,
+        "targetCalories": 2100,
+        "progress": 0.62
+      }
+    }
+  ],
+  "hydration-goals": [
+    {
+      "id": "1",
+      "userId": 1,
+      "dailyGoalMl": 2000,
+      "unit": "L",
+      "updatedAt": "2026-04-23"
+    }
+  ],
+  "hydration-logs": [
+    {
+      "id": "1",
+      "userId": 1,
+      "amountMl": 500,
+      "loggedAt": "2026-04-23T09:00:00",
+      "note": "Morning water"
+    },
+    {
+      "id": "2",
+      "userId": 1,
+      "amountMl": 1000,
+      "loggedAt": "2026-04-23T13:30:00",
+      "note": "After lunch"
+    },
+    {
+      "userId": 1,
+      "amountMl": 750,
+      "loggedAt": "2026-04-23T13:33:29.455Z",
+      "id": "gWeDsgbRjwQ"
+    },
+    {
+      "userId": 1,
+      "amountMl": 500,
+      "loggedAt": "2026-05-15T15:55:07.794Z",
+      "id": "7LH4jOZ1-oE"
+    },
+    {
+      "userId": 1,
+      "amountMl": 250,
+      "loggedAt": "2026-05-15T18:05:17.458Z",
+      "id": "f_v_8mxpo2c"
+    }
+  ],
+  "exercises": [
+    {
+      "id": "1",
+      "name": "Bench Press",
+      "muscleGroup": "Chest",
+      "description": "Compound chest exercise using a barbell on a flat bench.",
+      "videoUrl": "",
+      "createdAt": "2026-05-11T10:00:00.000Z"
+    },
+    {
+      "id": "2",
+      "name": "Overhead Press",
+      "muscleGroup": "Shoulders",
+      "description": "Shoulder pressing movement with barbell or dumbbells.",
+      "videoUrl": "",
+      "createdAt": "2026-05-11T10:00:00.000Z"
+    },
+    {
+      "id": "3",
+      "name": "Bicep Curls",
+      "muscleGroup": "Arms",
+      "description": "Isolation exercise for the biceps using dumbbells.",
+      "videoUrl": "",
+      "createdAt": "2026-05-11T10:00:00.000Z"
+    },
+    {
+      "id": "4",
+      "name": "Lat Pulldown",
+      "muscleGroup": "Back",
+      "description": "Back pulling exercise on the cable machine.",
+      "videoUrl": "",
+      "createdAt": "2026-05-11T10:00:00.000Z"
+    },
+    {
+      "id": "5",
+      "name": "Tricep Pushdown",
+      "muscleGroup": "Arms",
+      "description": "Cable pushdown targeting the triceps.",
+      "videoUrl": "",
+      "createdAt": "2026-05-11T10:00:00.000Z"
+    },
+    {
+      "id": "6",
+      "name": "Cable Flyes",
+      "muscleGroup": "Chest",
+      "description": "Isolation movement for the chest using cables.",
+      "videoUrl": "",
+      "createdAt": "2026-05-11T10:00:00.000Z"
+    }
+  ],
+  "workoutPlans": [
+    {
+      "id": "1",
+      "name": "Upper Body",
+      "dayLabel": "Day 2",
+      "targetMuscles": "Chest, Back, Arms",
+      "estimatedDurationMin": 35,
+      "exerciseCount": 6,
+      "createdAt": "2026-05-11T10:00:00.000Z"
+    },
+    {
+      "id": "2",
+      "name": "Lower Body",
+      "dayLabel": "Day 4",
+      "targetMuscles": "Quads, Hamstrings, Glutes",
+      "estimatedDurationMin": 40,
+      "exerciseCount": 5,
+      "createdAt": "2026-05-11T10:00:00.000Z"
+    },
+    {
+      "id": "3",
+      "name": "Push Day",
+      "dayLabel": "Day 1",
+      "targetMuscles": "Chest, Shoulders, Triceps",
+      "estimatedDurationMin": 45,
+      "exerciseCount": 6,
+      "createdAt": "2026-05-11T10:00:00.000Z"
+    }
+  ],
+  "workoutPlanExercises": [
+    {
+      "id": "1",
+      "workoutPlanId": 1,
+      "exerciseId": 1,
+      "sets": 4,
+      "reps": 10,
+      "restSeconds": 60,
+      "orderIndex": 1
+    },
+    {
+      "id": "2",
+      "workoutPlanId": 1,
+      "exerciseId": 2,
+      "sets": 3,
+      "reps": 12,
+      "restSeconds": 60,
+      "orderIndex": 2
+    },
+    {
+      "id": "3",
+      "workoutPlanId": 1,
+      "exerciseId": 3,
+      "sets": 3,
+      "reps": 10,
+      "restSeconds": 45,
+      "orderIndex": 3
+    },
+    {
+      "id": "4",
+      "workoutPlanId": 1,
+      "exerciseId": 4,
+      "sets": 3,
+      "reps": 12,
+      "restSeconds": 60,
+      "orderIndex": 4
+    },
+    {
+      "id": "5",
+      "workoutPlanId": 1,
+      "exerciseId": 5,
+      "sets": 3,
+      "reps": 12,
+      "restSeconds": 45,
+      "orderIndex": 5
+    },
+    {
+      "id": "6",
+      "workoutPlanId": 1,
+      "exerciseId": 6,
+      "sets": 3,
+      "reps": 15,
+      "restSeconds": 45,
+      "orderIndex": 6
+    },
+    {
+      "id": "7",
+      "workoutPlanId": 3,
+      "exerciseId": 1,
+      "sets": 4,
+      "reps": 8,
+      "restSeconds": 90,
+      "orderIndex": 1
+    },
+    {
+      "id": "8",
+      "workoutPlanId": 3,
+      "exerciseId": 2,
+      "sets": 4,
+      "reps": 8,
+      "restSeconds": 90,
+      "orderIndex": 2
+    },
+    {
+      "id": "9",
+      "workoutPlanId": 3,
+      "exerciseId": 6,
+      "sets": 3,
+      "reps": 15,
+      "restSeconds": 45,
+      "orderIndex": 3
+    }
+  ],
+  "workoutSessions": [
+    {
+      "userId": 1,
+      "workoutPlanId": "1",
+      "status": "active",
+      "startedAt": "2026-05-11T19:41:54.303Z",
+      "finishedAt": null,
+      "totalDurationSec": 0,
+      "caloriesBurned": 0,
+      "id": "DaV2yjo-mI0"
+    },
+    {
+      "userId": 1,
+      "workoutPlanId": "1",
+      "status": "active",
+      "startedAt": "2026-05-15T15:55:53.063Z",
+      "finishedAt": null,
+      "totalDurationSec": 0,
+      "caloriesBurned": 0,
+      "id": "WVQb8mHx75s"
+    },
+    {
+      "userId": 1,
+      "workoutPlanId": "1",
+      "status": "active",
+      "startedAt": "2026-05-15T16:04:23.829Z",
+      "finishedAt": null,
+      "totalDurationSec": 0,
+      "caloriesBurned": 0,
+      "id": "1sNBpeMk5qo"
+    },
+    {
+      "userId": 1,
+      "workoutPlanId": "1",
+      "status": "active",
+      "startedAt": "2026-05-15T18:06:07.624Z",
+      "finishedAt": null,
+      "totalDurationSec": 0,
+      "caloriesBurned": 0,
+      "id": "sK2EuY_Vkkc"
+    },
+    {
+      "userId": 1,
+      "workoutPlanId": "1",
+      "status": "active",
+      "startedAt": "2026-05-19T13:35:54.483Z",
+      "finishedAt": null,
+      "totalDurationSec": 0,
+      "caloriesBurned": 0,
+      "id": "GaQ_yciCWS4"
+    },
+    {
+      "userId": 1,
+      "workoutPlanId": "1",
+      "status": "active",
+      "startedAt": "2026-05-19T13:38:06.167Z",
+      "finishedAt": null,
+      "totalDurationSec": 0,
+      "caloriesBurned": 0,
+      "id": "hQmS9AFeU_s"
+    }
+  ],
+  "workoutSessionSets": [],
+  "workoutExerciseStatuses": [],
+  "foods": [
+    {
+      "id": "food_eggs",
+      "name": "Eggs",
+      "caloriesPerServing": 70,
+      "proteinG": 6,
+      "carbsG": 0,
+      "fatG": 5,
+      "servingUnit": "egg",
+      "servingSize": 1,
+      "createdAt": "2026-05-12"
+    },
+    {
+      "id": "food_chicken_salad",
+      "name": "Chicken Salad",
+      "caloriesPerServing": 300,
+      "proteinG": 32,
+      "carbsG": 12,
+      "fatG": 14,
+      "servingUnit": "plate",
+      "servingSize": 1,
+      "createdAt": "2026-05-12"
+    },
+    {
+      "id": "food_whole_wheat_bread",
+      "name": "Whole Wheat Bread",
+      "caloriesPerServing": 80,
+      "proteinG": 4,
+      "carbsG": 14,
+      "fatG": 1,
+      "servingUnit": "slice",
+      "servingSize": 1,
+      "createdAt": "2026-05-12"
+    },
+    {
+      "id": "food_grilled_fish",
+      "name": "Grilled Fish",
+      "caloriesPerServing": 200,
+      "proteinG": 28,
+      "carbsG": 0,
+      "fatG": 9,
+      "servingUnit": "portion",
+      "servingSize": 1,
+      "createdAt": "2026-05-12"
+    },
+    {
+      "id": "food_apple",
+      "name": "Apple",
+      "caloriesPerServing": 80,
+      "proteinG": 0,
+      "carbsG": 22,
+      "fatG": 0,
+      "servingUnit": "piece",
+      "servingSize": 1,
+      "createdAt": "2026-05-12"
+    },
+    {
+      "id": "food_almonds",
+      "name": "Almonds",
+      "caloriesPerServing": 50,
+      "proteinG": 2,
+      "carbsG": 2,
+      "fatG": 4,
+      "servingUnit": "piece",
+      "servingSize": 10,
+      "createdAt": "2026-05-12"
+    },
+    {
+      "id": "food_oatmeal",
+      "name": "Oatmeal",
+      "caloriesPerServing": 150,
+      "proteinG": 5,
+      "carbsG": 27,
+      "fatG": 3,
+      "servingUnit": "bowl",
+      "servingSize": 1,
+      "createdAt": "2026-05-12"
+    },
+    {
+      "id": "food_banana",
+      "name": "Banana",
+      "caloriesPerServing": 105,
+      "proteinG": 1,
+      "carbsG": 27,
+      "fatG": 0,
+      "servingUnit": "piece",
+      "servingSize": 1,
+      "createdAt": "2026-05-12"
+    },
+    {
+      "id": "food_greek_yogurt",
+      "name": "Greek Yogurt",
+      "caloriesPerServing": 100,
+      "proteinG": 17,
+      "carbsG": 6,
+      "fatG": 1,
+      "servingUnit": "cup",
+      "servingSize": 1,
+      "createdAt": "2026-05-12"
+    },
+    {
+      "id": "food_brown_rice",
+      "name": "Brown Rice",
+      "caloriesPerServing": 215,
+      "proteinG": 5,
+      "carbsG": 45,
+      "fatG": 2,
+      "servingUnit": "cup",
+      "servingSize": 1,
+      "createdAt": "2026-05-12"
+    }
+  ],
+  "nutritionGoals": [
+    {
+      "id": "goal_1",
+      "userId": "1",
+      "calorieGoal": 2000,
+      "proteinGoalG": 120,
+      "carbsGoalG": 250,
+      "fatGoalG": 70,
+      "updatedAt": "2026-05-12"
+    }
+  ],
+  "nutritionMeals": [
+    {
+      "id": "meal_breakfast",
+      "userId": "1",
+      "mealType": "Breakfast",
+      "calories": 420,
+      "foods": [
+        "Eggs",
+        "Whole Wheat Bread",
+        "Greek Yogurt"
+      ]
+    },
+    {
+      "id": "meal_lunch",
+      "userId": "1",
+      "mealType": "Lunch",
+      "calories": 500,
+      "foods": [
+        "Chicken Salad",
+        "Brown Rice"
+      ]
+    },
+    {
+      "id": "meal_dinner",
+      "userId": "1",
+      "mealType": "Dinner",
+      "calories": 300,
+      "foods": [
+        "Grilled Fish"
+      ]
+    },
+    {
+      "id": "meal_snack",
+      "userId": "1",
+      "mealType": "Snack",
+      "calories": 130,
+      "foods": [
+        "Apple",
+        "Almonds"
+      ]
+    }
+  ],
+  "$schema": "./node_modules/json-server/schema.json"
+}

@@ -8,6 +8,14 @@ const errorHandler = require('./middleware/errorHandler');
 const authRoutes = require('./routes/authRoutes');
 const profileRoutes = require('./routes/profileRoutes');
 const onboardingRoutes = require('./routes/onboardingRoutes');
+const hydrationRoutes = require('./routes/hydrationRoutes');
+const exerciseRoutes = require('./routes/exerciseRoutes');
+const workoutPlanRoutes = require('./routes/workoutPlanRoutes');
+const workoutSessionRoutes = require('./routes/workoutSessionRoutes');
+const workoutExerciseStatusRoutes = require('./routes/workoutExerciseStatusRoutes');
+const foodRoutes = require('./routes/foodRoutes');
+const mealLogRoutes = require('./routes/mealLogRoutes');
+const snackRoutes = require('./routes/snackRoutes');
 
 const app = express();
 
@@ -62,6 +70,30 @@ app.use('/api/profile', profileRoutes);
 
 // Onboarding routes
 app.use('/api/onboarding', onboardingRoutes);
+
+// Hydration routes
+app.use('/api/hydration', hydrationRoutes);
+
+// Exercise routes
+app.use('/api/exercises', exerciseRoutes);
+
+// Workout plan routes
+app.use('/api/workout-plans', workoutPlanRoutes);
+
+// Workout session routes
+app.use('/api/workout-sessions', workoutSessionRoutes);
+
+// Workout exercise status routes
+app.use('/api/workout-exercise-status', workoutExerciseStatusRoutes);
+
+// Food routes (hybrid search: DB → Open Food Facts → Gemini AI)
+app.use('/api/foods', foodRoutes);
+
+// Snack AI routes
+app.use('/api/snack', snackRoutes);
+
+// Meal log routes
+app.use('/api/meal-logs', mealLogRoutes);
 
 // 404 handler
 app.all('*', (req, res) => {
