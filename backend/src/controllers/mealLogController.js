@@ -1,43 +1,72 @@
-const MealLog = require('../models/MealLog');
-const MealItem = require('../models/MealItem');
-const Food = require('../models/Food');
-const NutritionGoal = require('../models/NutritionGoal');
+const { supabase } = require('../config/db');
 const ApiError = require('../utils/ApiError');
 
-// ============================================================
-// Helper — build start/end of a day in UTC
-// ============================================================
-const dayRange = (dateStr) => {
-  const date = dateStr ? new Date(dateStr) : new Date();
-  if (isNaN(date)) throw new ApiError(400, 'Invalid date format. Use YYYY-MM-DD.');
-  const start = new Date(date);
-  start.setUTCHours(0, 0, 0, 0);
-  const end = new Date(date);
-  end.setUTCHours(23, 59, 59, 999);
-  return { start, end };
+const dayStr = (dateInput) => {
+  if (!dateInput) return new Date().toISOString().split('T')[0];
+  const d = new Date(dateInput);
+  if (isNaN(d)) throw new ApiError(400, 'Invalid date format. Use YYYY-MM-DD.');
+  return d.toISOString().split('T')[0];
 };
 
-// ============================================================
-// GET /api/meal-logs?date=2026-05-17
-// Returns all meal logs for the day with their items populated
-// ============================================================
+const mapMealItem = (row, foodRow = null) => {
+  if (!row) return null;
+  return {
+    _id: row.id,
+    id: row.id,
+    mealLogId: row.meal_log_id,
+    foodId: foodRow
+      ? {
+          _id: foodRow.id,
+          id: foodRow.id,
+          name: foodRow.name,
+          caloriesPerServing: Number(foodRow.calories || 0),
+          proteinG: Number(foodRow.protein_g || 0),
+          carbsG: Number(foodRow.carbs_g || 0),
+          fatG: Number(foodRow.fat_g || 0),
+          servingSize: Number(foodRow.serving_size_g || 100),
+          servingUnit: foodRow.serving_size || 'g',
+        }
+      : row.food_id,
+    quantity: Number(row.quantity),
+    calories: Number(row.calories),
+    proteinG: Number(row.protein_g),
+    carbsG: Number(row.carbs_g),
+    fatG: Number(row.fat_g),
+    createdAt: row.created_at,
+  };
+};
+
 exports.getDailyLogs = async (req, res, next) => {
   try {
-    const { start, end } = dayRange(req.query.date);
+    const targetDate = dayStr(req.query.date);
 
-    const logs = await MealLog.find({
-      userId: req.user._id,
-      date: { $gte: start, $lte: end },
-    }).sort({ mealType: 1 });
+    const { data: logs, error } = await supabase
+      .from('meal_logs')
+      .select('*')
+      .eq('user_id', req.user.id)
+      .eq('date', targetDate);
 
-    // Populate items for each log
+    if (error) throw new ApiError(500, `Database error: ${error.message}`);
+
     const logsWithItems = await Promise.all(
-      logs.map(async (log) => {
-        const items = await MealItem.find({ mealLogId: log._id }).populate(
-          'foodId',
-          'name caloriesPerServing proteinG carbsG fatG servingSize servingUnit'
-        );
-        return { ...log.toObject(), items };
+      (logs || []).map(async (log) => {
+        const { data: itemRows } = await supabase
+          .from('meal_items')
+          .select('*, foods(*)')
+          .eq('meal_log_id', log.id);
+
+        const items = (itemRows || []).map((item) => mapMealItem(item, item.foods));
+
+        return {
+          _id: log.id,
+          id: log.id,
+          userId: log.user_id,
+          date: log.date,
+          mealType: log.meal_type,
+          createdAt: log.created_at,
+          updatedAt: log.updated_at,
+          items,
+        };
       })
     );
 
@@ -47,59 +76,69 @@ exports.getDailyLogs = async (req, res, next) => {
   }
 };
 
-// ============================================================
-// GET /api/meal-logs/summary?date=2026-05-17
-// Daily totals: calories consumed vs goal, macros
-// ============================================================
 exports.getDailySummary = async (req, res, next) => {
   try {
-    const { start, end } = dayRange(req.query.date);
+    const targetDate = dayStr(req.query.date);
 
-    const logs = await MealLog.find({
-      userId: req.user._id,
-      date: { $gte: start, $lte: end },
-    });
+    const { data: logs } = await supabase
+      .from('meal_logs')
+      .select('id')
+      .eq('user_id', req.user.id)
+      .eq('date', targetDate);
 
-    const logIds = logs.map((l) => l._id);
-    const items = await MealItem.find({ mealLogId: { $in: logIds } });
+    const logIds = (logs || []).map((l) => l.id);
+
+    let items = [];
+    if (logIds.length > 0) {
+      const { data: itemRows } = await supabase
+        .from('meal_items')
+        .select('*')
+        .in('meal_log_id', logIds);
+      items = itemRows || [];
+    }
 
     const consumed = items.reduce(
       (acc, item) => {
-        acc.calories += item.calories || 0;
-        acc.proteinG += item.proteinG || 0;
-        acc.carbsG += item.carbsG || 0;
-        acc.fatG += item.fatG || 0;
+        acc.calories += Number(item.calories || 0);
+        acc.proteinG += Number(item.protein_g || 0);
+        acc.carbsG += Number(item.carbs_g || 0);
+        acc.fatG += Number(item.fat_g || 0);
         return acc;
       },
       { calories: 0, proteinG: 0, carbsG: 0, fatG: 0 }
     );
 
-    // Round all values
     Object.keys(consumed).forEach((k) => {
       consumed[k] = Math.round(consumed[k] * 10) / 10;
     });
 
-    const goal = await NutritionGoal.findOne({ userId: req.user._id });
+    const { data: goalRow } = await supabase
+      .from('nutrition_goals')
+      .select('*')
+      .eq('user_id', req.user.id)
+      .maybeSingle();
+
+    const goal = goalRow
+      ? {
+          calories: Number(goalRow.daily_calories),
+          proteinG: Number(goalRow.protein_g),
+          carbsG: Number(goalRow.carbs_g),
+          fatG: Number(goalRow.fat_g),
+        }
+      : null;
 
     res.status(200).json({
       success: true,
       data: {
-        date: req.query.date || new Date().toISOString().split('T')[0],
+        date: targetDate,
         consumed,
-        goal: goal
-          ? {
-              calories: goal.calorieGoal,
-              proteinG: goal.proteinGoalG,
-              carbsG: goal.carbsGoalG,
-              fatG: goal.fatGoalG,
-            }
-          : null,
+        goal,
         remaining: goal
           ? {
-              calories: Math.max(0, goal.calorieGoal - consumed.calories),
-              proteinG: Math.max(0, goal.proteinGoalG - consumed.proteinG),
-              carbsG: Math.max(0, goal.carbsGoalG - consumed.carbsG),
-              fatG: Math.max(0, goal.fatGoalG - consumed.fatG),
+              calories: Math.max(0, goal.calories - consumed.calories),
+              proteinG: Math.max(0, goal.proteinG - consumed.proteinG),
+              carbsG: Math.max(0, goal.carbsG - consumed.carbsG),
+              fatG: Math.max(0, goal.fatG - consumed.fatG),
             }
           : null,
       },
@@ -109,67 +148,102 @@ exports.getDailySummary = async (req, res, next) => {
   }
 };
 
-// ============================================================
-// POST /api/meal-logs
-// Create or retrieve a meal log for a given date + mealType
-// ============================================================
 exports.createOrGetMealLog = async (req, res, next) => {
   try {
     const { date, mealType } = req.body;
     if (!date || !mealType) throw new ApiError(400, 'date and mealType are required.');
 
-    const { start, end } = dayRange(date);
+    const targetDate = dayStr(date);
 
-    let log = await MealLog.findOne({
-      userId: req.user._id,
-      date: { $gte: start, $lte: end },
-      mealType,
-    });
+    let { data: log } = await supabase
+      .from('meal_logs')
+      .select('*')
+      .eq('user_id', req.user.id)
+      .eq('date', targetDate)
+      .eq('meal_type', mealType)
+      .maybeSingle();
 
     if (!log) {
-      log = await MealLog.create({
-        userId: req.user._id,
-        date: new Date(date),
-        mealType,
-      });
+      const { data: newLog, error } = await supabase
+        .from('meal_logs')
+        .insert([
+          {
+            user_id: req.user.id,
+            date: targetDate,
+            meal_type: mealType,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error || !newLog) throw new ApiError(500, `Failed to create meal log: ${error?.message}`);
+      log = newLog;
     }
 
-    res.status(200).json({ success: true, data: log });
+    res.status(200).json({
+      success: true,
+      data: {
+        _id: log.id,
+        id: log.id,
+        userId: log.user_id,
+        date: log.date,
+        mealType: log.meal_type,
+        createdAt: log.created_at,
+        updatedAt: log.updated_at,
+      },
+    });
   } catch (err) {
     next(err);
   }
 };
 
-// ============================================================
-// POST /api/meal-logs/:id/items
-// Add a food item to a meal log
-// Body: { foodId, quantity }  — quantity is in servings
-// ============================================================
 exports.addItemToMeal = async (req, res, next) => {
   try {
     const { foodId, quantity } = req.body;
     if (!foodId || !quantity) throw new ApiError(400, 'foodId and quantity are required.');
 
-    // Verify the meal log belongs to this user
-    const log = await MealLog.findOne({ _id: req.params.id, userId: req.user._id });
+    const { data: log } = await supabase
+      .from('meal_logs')
+      .select('*')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .maybeSingle();
+
     if (!log) throw new ApiError(404, 'Meal log not found.');
 
-    const food = await Food.findById(foodId);
+    const { data: food } = await supabase
+      .from('foods')
+      .select('*')
+      .eq('id', foodId)
+      .maybeSingle();
+
     if (!food) throw new ApiError(404, 'Food not found.');
 
-    // Calculate nutrition based on quantity (each unit = 1 serving)
-    const factor = quantity;
-    const item = await MealItem.create({
-      mealLogId: log._id,
-      foodId: food._id,
-      quantity,
-      calories: Math.round(food.caloriesPerServing * factor * 10) / 10,
-      proteinG: Math.round(food.proteinG * factor * 10) / 10,
-      carbsG: Math.round(food.carbsG * factor * 10) / 10,
-      fatG: Math.round(food.fatG * factor * 10) / 10,
-    });
+    const factor = Number(quantity);
+    const calories = Math.round(Number(food.calories || 0) * factor * 10) / 10;
+    const proteinG = Math.round(Number(food.protein_g || 0) * factor * 10) / 10;
+    const carbsG = Math.round(Number(food.carbs_g || 0) * factor * 10) / 10;
+    const fatG = Math.round(Number(food.fat_g || 0) * factor * 10) / 10;
 
-    await item.populate('foodId', 'name caloriesPerServing servingSize servingUnit');
+    const { data: itemRow, error } = await supabase
+      .from('meal_items')
+      .insert([
+        {
+          meal_log_id: log.id,
+          food_id: food.id,
+          quantity: factor,
+          calories,
+          protein_g: proteinG,
+          carbs_g: carbsG,
+          fat_g: fatG,
+        },
+      ])
+      .select()
+      .single();
+
+    if (error || !itemRow) throw new ApiError(500, `Failed to add item: ${error?.message}`);
+
+    const item = mapMealItem(itemRow, food);
 
     res.status(201).json({ success: true, data: item });
   } catch (err) {
@@ -177,20 +251,24 @@ exports.addItemToMeal = async (req, res, next) => {
   }
 };
 
-// ============================================================
-// DELETE /api/meal-logs/:mealLogId/items/:itemId
-// ============================================================
 exports.removeItemFromMeal = async (req, res, next) => {
   try {
-    const log = await MealLog.findOne({ _id: req.params.mealLogId, userId: req.user._id });
+    const { data: log } = await supabase
+      .from('meal_logs')
+      .select('*')
+      .eq('id', req.params.mealLogId)
+      .eq('user_id', req.user.id)
+      .maybeSingle();
+
     if (!log) throw new ApiError(404, 'Meal log not found.');
 
-    const item = await MealItem.findOneAndDelete({
-      _id: req.params.itemId,
-      mealLogId: log._id,
-    });
+    const { error } = await supabase
+      .from('meal_items')
+      .delete()
+      .eq('id', req.params.itemId)
+      .eq('meal_log_id', log.id);
 
-    if (!item) throw new ApiError(404, 'Meal item not found.');
+    if (error) throw new ApiError(404, 'Meal item not found.');
 
     res.status(200).json({ success: true, message: 'Item removed from meal.' });
   } catch (err) {

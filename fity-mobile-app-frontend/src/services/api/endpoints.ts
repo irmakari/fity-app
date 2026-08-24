@@ -1,23 +1,23 @@
 export const API_ENDPOINTS = {
     auth: {
-        login: '/users',
+        login: '/auth/login',
+        register: '/auth/register',
     },
-    todayPlan: '/todayPlan',
+    todayPlan: '/workout-plans',
     hydration: {
-        hydrationGoals: '/hydration-goals',
-        hydrationLogs: '/hydration-logs',
+        today: '/hydration/today',
+        hydrationGoals: '/hydration/goals',
+        hydrationLogs: '/hydration/logs',
     },
     workout: {
         exercises: '/exercises',
-        workoutPlans: '/workoutPlans',
-        workoutPlanExercises: '/workoutPlanExercises',
-        workoutSessions: '/workoutSessions',
-        workoutSessionSets: '/workoutSessionSets',
-        workoutExerciseStatuses: '/workoutExerciseStatuses',
+        workoutPlans: '/workout-plans',
+        workoutSessions: '/workout-sessions',
+        workoutExerciseStatuses: '/workout-exercise-status',
     },
     nutrition: {
         foods: '/foods',
-        nutritionGoals: '/nutritionGoals',
-        nutritionMeals: '/nutritionMeals',
+        summary: '/meal-logs/summary',
+        mealLogs: '/meal-logs',
     },
 };

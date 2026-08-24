@@ -1,19 +1,74 @@
 const { body } = require('express-validator');
-const mongoose = require('mongoose');
-const WorkoutSession = require('../models/WorkoutSession');
-const WorkoutSessionSet = require('../models/WorkoutSessionSet');
+const { supabase } = require('../config/db');
 const ApiError = require('../utils/ApiError');
 
-// ============================================================
-// VALIDATION RULES
-// ============================================================
+const mapSession = async (row) => {
+  if (!row) return null;
+
+  let workoutPlan = null;
+  if (row.workout_plan_id) {
+    const { data: planRow } = await supabase
+      .from('workout_plans')
+      .select('id, name, day_label, target_muscles, estimated_duration_min')
+      .eq('id', row.workout_plan_id)
+      .maybeSingle();
+
+    if (planRow) {
+      workoutPlan = {
+        _id: planRow.id,
+        id: planRow.id,
+        name: planRow.name,
+        dayLabel: planRow.day_label,
+        targetMuscles: planRow.target_muscles || [],
+        estimatedDurationMin: planRow.estimated_duration_min,
+      };
+    }
+  }
+
+  return {
+    _id: row.id,
+    id: row.id,
+    userId: row.user_id,
+    workoutPlanId: workoutPlan || row.workout_plan_id,
+    status: row.status,
+    startedAt: row.started_at,
+    finishedAt: row.finished_at,
+    totalDurationSec: row.total_duration_sec,
+    caloriesBurned: Number(row.calories_burned || 0),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+};
+
+const mapSet = (row, exerciseRow = null) => {
+  if (!row) return null;
+  return {
+    _id: row.id,
+    id: row.id,
+    sessionId: row.workout_session_id,
+    workoutSessionId: row.workout_session_id,
+    exerciseId: exerciseRow
+      ? {
+          _id: exerciseRow.id,
+          id: exerciseRow.id,
+          name: exerciseRow.name,
+          muscleGroup: exerciseRow.target_muscle || exerciseRow.category,
+        }
+      : row.exercise_id,
+    setNumber: row.set_number,
+    reps: row.reps,
+    repsCompleted: row.reps,
+    weightKg: Number(row.weight_kg || 0),
+    isCompleted: row.is_completed,
+    completedAt: row.completed_at,
+    createdAt: row.created_at,
+  };
+};
 
 const startSessionValidation = [
   body('workoutPlanId')
     .notEmpty()
-    .withMessage('Workout plan ID is required.')
-    .isMongoId()
-    .withMessage('Invalid workout plan ID.'),
+    .withMessage('Workout plan ID is required.'),
 ];
 
 const finishSessionValidation = [
@@ -37,9 +92,7 @@ const finishSessionValidation = [
 const logSetValidation = [
   body('exerciseId')
     .notEmpty()
-    .withMessage('Exercise ID is required.')
-    .isMongoId()
-    .withMessage('Invalid exercise ID.'),
+    .withMessage('Exercise ID is required.'),
   body('setNumber')
     .isInt({ min: 1 })
     .withMessage('Set number must be at least 1.'),
@@ -47,34 +100,38 @@ const logSetValidation = [
     .optional()
     .isInt({ min: 0 })
     .withMessage('Reps completed cannot be negative.'),
-  body('restSkipped')
+  body('weightKg')
     .optional()
-    .isBoolean()
-    .withMessage('restSkipped must be true or false.'),
+    .isFloat({ min: 0 })
+    .withMessage('Weight cannot be negative.'),
   body('completedAt')
     .optional()
     .isISO8601()
     .withMessage('completedAt must be a valid date.'),
 ];
 
-// ============================================================
-// CONTROLLER METHODS
-// ============================================================
-
-/**
- * @desc    Start a new workout session
- * @route   POST /api/workout-sessions
- * @access  Private
- */
 const startSession = async (req, res, next) => {
   try {
     const { workoutPlanId } = req.body;
 
-    const session = await WorkoutSession.create({
-      userId: req.user._id,
-      workoutPlanId,
-      status: 'in_progress',
-    });
+    const { data: newRow, error } = await supabase
+      .from('workout_sessions')
+      .insert([
+        {
+          user_id: req.user.id,
+          workout_plan_id: workoutPlanId,
+          status: 'in_progress',
+          started_at: new Date().toISOString(),
+        },
+      ])
+      .select()
+      .single();
+
+    if (error || !newRow) {
+      throw new ApiError(500, `Failed to start workout session: ${error?.message}`);
+    }
+
+    const session = await mapSession(newRow);
 
     res.status(201).json({
       success: true,
@@ -86,16 +143,19 @@ const startSession = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Get all sessions for the authenticated user
- * @route   GET /api/workout-sessions
- * @access  Private
- */
 const getUserSessions = async (req, res, next) => {
   try {
-    const sessions = await WorkoutSession.find({ userId: req.user._id })
-      .populate('workoutPlanId', 'name dayLabel')
-      .sort({ startedAt: -1 });
+    const { data: rows, error } = await supabase
+      .from('workout_sessions')
+      .select('*')
+      .eq('user_id', req.user.id)
+      .order('started_at', { ascending: false });
+
+    if (error) {
+      throw new ApiError(500, `Database error: ${error.message}`);
+    }
+
+    const sessions = await Promise.all((rows || []).map(mapSession));
 
     res.status(200).json({
       success: true,
@@ -107,30 +167,28 @@ const getUserSessions = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Get a single session by ID
- * @route   GET /api/workout-sessions/:id
- * @access  Private
- */
 const getSessionById = async (req, res, next) => {
   try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      throw new ApiError(400, 'Invalid session ID.');
-    }
+    const { data: row, error } = await supabase
+      .from('workout_sessions')
+      .select('*')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .maybeSingle();
 
-    const session = await WorkoutSession.findOne({
-      _id: req.params.id,
-      userId: req.user._id,
-    }).populate('workoutPlanId', 'name dayLabel targetMuscles estimatedDurationMin');
-
-    if (!session) {
+    if (error || !row) {
       throw new ApiError(404, 'Session not found.');
     }
 
-    const sets = await WorkoutSessionSet.find({ sessionId: session._id }).populate(
-      'exerciseId',
-      'name muscleGroup'
-    );
+    const session = await mapSession(row);
+
+    const { data: setRows } = await supabase
+      .from('workout_session_sets')
+      .select('*, exercises(id, name, target_muscle, category)')
+      .eq('workout_session_id', row.id)
+      .order('created_at', { ascending: true });
+
+    const sets = (setRows || []).map((s) => mapSet(s, s.exercises));
 
     res.status(200).json({
       success: true,
@@ -141,23 +199,16 @@ const getSessionById = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Finish or cancel a session
- * @route   PATCH /api/workout-sessions/:id/finish
- * @access  Private
- */
 const finishSession = async (req, res, next) => {
   try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      throw new ApiError(400, 'Invalid session ID.');
-    }
+    const { data: session, error } = await supabase
+      .from('workout_sessions')
+      .select('*')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .maybeSingle();
 
-    const session = await WorkoutSession.findOne({
-      _id: req.params.id,
-      userId: req.user._id,
-    });
-
-    if (!session) {
+    if (error || !session) {
       throw new ApiError(404, 'Session not found.');
     }
 
@@ -167,38 +218,46 @@ const finishSession = async (req, res, next) => {
 
     const { status, finishedAt, totalDurationSec, caloriesBurned } = req.body;
 
-    session.status = status;
-    session.finishedAt = finishedAt ? new Date(finishedAt) : new Date();
-    if (totalDurationSec !== undefined) session.totalDurationSec = totalDurationSec;
-    if (caloriesBurned !== undefined) session.caloriesBurned = caloriesBurned;
+    const updates = {
+      status,
+      finished_at: finishedAt ? new Date(finishedAt).toISOString() : new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
 
-    await session.save();
+    if (totalDurationSec !== undefined) updates.total_duration_sec = totalDurationSec;
+    if (caloriesBurned !== undefined) updates.calories_burned = caloriesBurned;
+
+    const { data: updatedRow, error: updateErr } = await supabase
+      .from('workout_sessions')
+      .update(updates)
+      .eq('id', req.params.id)
+      .select()
+      .single();
+
+    if (updateErr || !updatedRow) {
+      throw new ApiError(500, `Failed to update session: ${updateErr?.message}`);
+    }
+
+    const updatedSession = await mapSession(updatedRow);
 
     res.status(200).json({
       success: true,
       message: `Workout session ${status}.`,
-      data: { session },
+      data: { session: updatedSession },
     });
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * @desc    Log a set within a session
- * @route   POST /api/workout-sessions/:id/sets
- * @access  Private
- */
 const logSet = async (req, res, next) => {
   try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      throw new ApiError(400, 'Invalid session ID.');
-    }
-
-    const session = await WorkoutSession.findOne({
-      _id: req.params.id,
-      userId: req.user._id,
-    });
+    const { data: session } = await supabase
+      .from('workout_sessions')
+      .select('*')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .maybeSingle();
 
     if (!session) {
       throw new ApiError(404, 'Session not found.');
@@ -208,50 +267,60 @@ const logSet = async (req, res, next) => {
       throw new ApiError(400, 'Sets can only be logged for in-progress sessions.');
     }
 
-    const { exerciseId, setNumber, repsCompleted, restSkipped, completedAt } = req.body;
+    const { exerciseId, setNumber, repsCompleted, reps, weightKg, completedAt } = req.body;
 
-    const set = await WorkoutSessionSet.create({
-      sessionId: session._id,
-      exerciseId,
-      setNumber,
-      repsCompleted,
-      restSkipped,
-      completedAt: completedAt ? new Date(completedAt) : new Date(),
-    });
+    const { data: setRow, error } = await supabase
+      .from('workout_session_sets')
+      .insert([
+        {
+          workout_session_id: session.id,
+          exercise_id: exerciseId,
+          set_number: setNumber,
+          reps: repsCompleted !== undefined ? repsCompleted : reps || 0,
+          weight_kg: weightKg || 0,
+          is_completed: true,
+          completed_at: completedAt ? new Date(completedAt).toISOString() : new Date().toISOString(),
+        },
+      ])
+      .select('*, exercises(id, name, target_muscle, category)')
+      .single();
+
+    if (error || !setRow) {
+      throw new ApiError(500, `Failed to log set: ${error?.message}`);
+    }
+
+    const setObj = mapSet(setRow, setRow.exercises);
 
     res.status(201).json({
       success: true,
       message: 'Set logged successfully.',
-      data: { set },
+      data: { set: setObj },
     });
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * @desc    Get all sets for a session
- * @route   GET /api/workout-sessions/:id/sets
- * @access  Private
- */
 const getSessionSets = async (req, res, next) => {
   try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      throw new ApiError(400, 'Invalid session ID.');
-    }
-
-    const session = await WorkoutSession.findOne({
-      _id: req.params.id,
-      userId: req.user._id,
-    });
+    const { data: session } = await supabase
+      .from('workout_sessions')
+      .select('*')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .maybeSingle();
 
     if (!session) {
       throw new ApiError(404, 'Session not found.');
     }
 
-    const sets = await WorkoutSessionSet.find({ sessionId: session._id })
-      .populate('exerciseId', 'name muscleGroup')
-      .sort({ completedAt: 1 });
+    const { data: setRows } = await supabase
+      .from('workout_session_sets')
+      .select('*, exercises(id, name, target_muscle, category)')
+      .eq('workout_session_id', session.id)
+      .order('completed_at', { ascending: true });
+
+    const sets = (setRows || []).map((s) => mapSet(s, s.exercises));
 
     res.status(200).json({
       success: true,

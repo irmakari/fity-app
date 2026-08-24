@@ -1,12 +1,15 @@
 import { axiosInstance } from '@/services/api/axiosInstance';
 import { API_ENDPOINTS } from '@/services/api/endpoints';
-import { TTodayPlan } from './todayPlan.type';
 
 export class TodayPlanService {
-    static async getTodayPlan(userId: number): Promise<TTodayPlan | null> {
-        const response = await axiosInstance.get<TTodayPlan[]>(
-            `${API_ENDPOINTS.todayPlan}?userId=${userId}`
-        );
-        return response.data[0] ?? null;
+    static async getTodayPlan(): Promise<any | null> {
+        try {
+            const response = await axiosInstance.get(API_ENDPOINTS.todayPlan);
+            const plans = response.data?.data?.plans || [];
+            return plans[0] ?? null;
+        } catch (error) {
+            console.error('getTodayPlan error:', error);
+            return null;
+        }
     }
 }

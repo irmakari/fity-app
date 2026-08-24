@@ -1,11 +1,52 @@
 const { body } = require('express-validator');
-const mongoose = require('mongoose');
-const WorkoutPlan = require('../models/WorkoutPlan');
+const { supabase } = require('../config/db');
 const ApiError = require('../utils/ApiError');
 
-// ============================================================
-// VALIDATION RULES
-// ============================================================
+const mapPlan = async (row) => {
+  if (!row) return null;
+
+  // Populate exercises if exercises JSON array exists
+  let exercises = row.exercises || [];
+  if (Array.isArray(exercises) && exercises.length > 0) {
+    const exerciseIds = exercises.map((e) => e.exerciseId).filter(Boolean);
+
+    if (exerciseIds.length > 0) {
+      const { data: exRows } = await supabase
+        .from('exercises')
+        .select('*')
+        .in('id', exerciseIds);
+
+      const exMap = (exRows || []).reduce((acc, ex) => {
+        acc[ex.id] = {
+          _id: ex.id,
+          id: ex.id,
+          name: ex.name,
+          muscleGroup: ex.target_muscle || ex.category,
+          description: ex.description,
+          videoUrl: ex.video_url,
+        };
+        return acc;
+      }, {});
+
+      exercises = exercises.map((item) => ({
+        ...item,
+        exerciseId: exMap[item.exerciseId] || item.exerciseId,
+      }));
+    }
+  }
+
+  return {
+    _id: row.id,
+    id: row.id,
+    name: row.name,
+    dayLabel: row.day_label,
+    targetMuscles: row.target_muscles || [],
+    estimatedDurationMin: row.estimated_duration_min,
+    exercises,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+};
 
 const createPlanValidation = [
   body('name')
@@ -31,9 +72,7 @@ const createPlanValidation = [
     .withMessage('Exercises must be an array.'),
   body('exercises.*.exerciseId')
     .notEmpty()
-    .withMessage('Exercise ID is required.')
-    .isMongoId()
-    .withMessage('Invalid exercise ID.'),
+    .withMessage('Exercise ID is required.'),
   body('exercises.*.sets')
     .isInt({ min: 1 })
     .withMessage('Sets must be at least 1.'),
@@ -73,9 +112,7 @@ const updatePlanValidation = [
     .withMessage('Exercises must be an array.'),
   body('exercises.*.exerciseId')
     .notEmpty()
-    .withMessage('Exercise ID is required.')
-    .isMongoId()
-    .withMessage('Invalid exercise ID.'),
+    .withMessage('Exercise ID is required.'),
   body('exercises.*.sets')
     .isInt({ min: 1 })
     .withMessage('Sets must be at least 1.'),
@@ -90,20 +127,18 @@ const updatePlanValidation = [
     .withMessage('Order index cannot be negative.'),
 ];
 
-// ============================================================
-// CONTROLLER METHODS
-// ============================================================
-
-/**
- * @desc    Get all workout plans
- * @route   GET /api/workout-plans
- * @access  Private
- */
 const getWorkoutPlans = async (req, res, next) => {
   try {
-    const plans = await WorkoutPlan.find()
-      .populate('exercises.exerciseId', 'name muscleGroup description videoUrl')
-      .sort({ createdAt: -1 });
+    const { data: rows, error } = await supabase
+      .from('workout_plans')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw new ApiError(500, `Database error: ${error.message}`);
+    }
+
+    const plans = await Promise.all((rows || []).map(mapPlan));
 
     res.status(200).json({
       success: true,
@@ -115,25 +150,19 @@ const getWorkoutPlans = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Get single workout plan by ID
- * @route   GET /api/workout-plans/:id
- * @access  Private
- */
 const getWorkoutPlanById = async (req, res, next) => {
   try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      throw new ApiError(400, 'Invalid workout plan ID.');
-    }
+    const { data: row, error } = await supabase
+      .from('workout_plans')
+      .select('*')
+      .eq('id', req.params.id)
+      .maybeSingle();
 
-    const plan = await WorkoutPlan.findById(req.params.id).populate(
-      'exercises.exerciseId',
-      'name muscleGroup description videoUrl'
-    );
-
-    if (!plan) {
+    if (error || !row) {
       throw new ApiError(404, 'Workout plan not found.');
     }
+
+    const plan = await mapPlan(row);
 
     res.status(200).json({
       success: true,
@@ -144,54 +173,54 @@ const getWorkoutPlanById = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Create a new workout plan
- * @route   POST /api/workout-plans
- * @access  Private
- */
 const createWorkoutPlan = async (req, res, next) => {
   try {
     const { name, dayLabel, targetMuscles, estimatedDurationMin, exercises } = req.body;
 
-    const plan = await WorkoutPlan.create({
-      name,
-      dayLabel,
-      targetMuscles,
-      estimatedDurationMin,
-      exercises: exercises || [],
-    });
+    const { data: newRow, error } = await supabase
+      .from('workout_plans')
+      .insert([
+        {
+          name,
+          day_label: dayLabel,
+          target_muscles: targetMuscles || [],
+          estimated_duration_min: estimatedDurationMin,
+          exercises: exercises || [],
+        },
+      ])
+      .select()
+      .single();
 
-    const populated = await plan.populate(
-      'exercises.exerciseId',
-      'name muscleGroup description videoUrl'
-    );
+    if (error || !newRow) {
+      throw new ApiError(500, `Failed to create workout plan: ${error?.message}`);
+    }
+
+    const plan = await mapPlan(newRow);
 
     res.status(201).json({
       success: true,
       message: 'Workout plan created successfully.',
-      data: { plan: populated },
+      data: { plan },
     });
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * @desc    Update a workout plan
- * @route   PATCH /api/workout-plans/:id
- * @access  Private
- */
 const updateWorkoutPlan = async (req, res, next) => {
   try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      throw new ApiError(400, 'Invalid workout plan ID.');
-    }
+    const fieldMapping = {
+      name: 'name',
+      dayLabel: 'day_label',
+      targetMuscles: 'target_muscles',
+      estimatedDurationMin: 'estimated_duration_min',
+      exercises: 'exercises',
+    };
 
-    const allowedFields = ['name', 'dayLabel', 'targetMuscles', 'estimatedDurationMin', 'exercises'];
     const updates = {};
-    allowedFields.forEach((field) => {
+    Object.keys(fieldMapping).forEach((field) => {
       if (req.body[field] !== undefined) {
-        updates[field] = req.body[field];
+        updates[fieldMapping[field]] = req.body[field];
       }
     });
 
@@ -199,14 +228,20 @@ const updateWorkoutPlan = async (req, res, next) => {
       throw new ApiError(400, 'No valid fields to update.');
     }
 
-    const plan = await WorkoutPlan.findByIdAndUpdate(req.params.id, updates, {
-      new: true,
-      runValidators: true,
-    }).populate('exercises.exerciseId', 'name muscleGroup description videoUrl');
+    updates.updated_at = new Date().toISOString();
 
-    if (!plan) {
+    const { data: updatedRow, error } = await supabase
+      .from('workout_plans')
+      .update(updates)
+      .eq('id', req.params.id)
+      .select()
+      .single();
+
+    if (error || !updatedRow) {
       throw new ApiError(404, 'Workout plan not found.');
     }
+
+    const plan = await mapPlan(updatedRow);
 
     res.status(200).json({
       success: true,
@@ -218,21 +253,15 @@ const updateWorkoutPlan = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Delete a workout plan
- * @route   DELETE /api/workout-plans/:id
- * @access  Private
- */
 const deleteWorkoutPlan = async (req, res, next) => {
   try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      throw new ApiError(400, 'Invalid workout plan ID.');
-    }
+    const { error } = await supabase
+      .from('workout_plans')
+      .delete()
+      .eq('id', req.params.id);
 
-    const plan = await WorkoutPlan.findByIdAndDelete(req.params.id);
-
-    if (!plan) {
-      throw new ApiError(404, 'Workout plan not found.');
+    if (error) {
+      throw new ApiError(404, 'Workout plan not found or delete failed.');
     }
 
     res.status(200).json({

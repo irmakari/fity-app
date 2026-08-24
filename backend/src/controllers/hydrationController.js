@@ -1,29 +1,44 @@
-const HydrationLog = require('../models/HydrationLog');
-const HydrationGoal = require('../models/HydrationGoal');
+const { supabase } = require('../config/db');
 
-// GET /api/hydration/today
+const mapHydrationLog = (row) => {
+  if (!row) return null;
+  return {
+    _id: row.id,
+    id: row.id,
+    userId: row.user_id,
+    amountMl: Number(row.amount_ml),
+    date: row.date,
+    loggedAt: row.created_at,
+    createdAt: row.created_at,
+  };
+};
+
 const getTodayHydration = async (req, res) => {
   try {
     const userId = req.user.id;
+    const todayStr = new Date().toISOString().split('T')[0];
 
-    // Bugünün başı ve sonu
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date();
-    endOfDay.setHours(23, 59, 59, 999);
+    const { data: logRows, error } = await supabase
+      .from('hydration_logs')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('date', todayStr)
+      .order('created_at', { ascending: false });
 
-    // Bugünkü logları getir
-    const logs = await HydrationLog.find({
-      userId,
-      loggedAt: { $gte: startOfDay, $lte: endOfDay },
-    }).sort({ loggedAt: -1 });
+    if (error) {
+      return res.status(500).json({ success: false, message: error.message });
+    }
 
-    // Toplam içilen su
+    const logs = (logRows || []).map(mapHydrationLog);
     const totalMl = logs.reduce((sum, log) => sum + log.amountMl, 0);
 
-    // Günlük hedef
-    const goal = await HydrationGoal.findOne({ userId });
-    const dailyGoalMl = goal ? goal.dailyGoalMl : 2500;
+    const { data: goalRow } = await supabase
+      .from('hydration_goals')
+      .select('daily_target_ml')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const dailyGoalMl = goalRow ? Number(goalRow.daily_target_ml) : 2500;
 
     res.status(200).json({
       success: true,
@@ -40,45 +55,63 @@ const getTodayHydration = async (req, res) => {
   }
 };
 
-// GET /api/hydration/logs?date=2026-03-30
 const getLogsByDate = async (req, res) => {
   try {
     const userId = req.user.id;
     const { date } = req.query;
 
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+    const dateStr = date ? new Date(date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
 
-    const logs = await HydrationLog.find({
-      userId,
-      loggedAt: { $gte: startOfDay, $lte: endOfDay },
-    }).sort({ loggedAt: -1 });
+    const { data: logRows, error } = await supabase
+      .from('hydration_logs')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('date', dateStr)
+      .order('created_at', { ascending: false });
 
+    if (error) {
+      return res.status(500).json({ success: false, message: error.message });
+    }
+
+    const logs = (logRows || []).map(mapHydrationLog);
     const totalMl = logs.reduce((sum, log) => sum + log.amountMl, 0);
 
     res.status(200).json({
       success: true,
-      data: { date, totalMl, logs },
+      data: { date: dateStr, totalMl, logs },
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// POST /api/hydration/logs
 const addHydrationLog = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { amountMl, note } = req.body;
+    const { amountMl, date } = req.body;
 
-    const log = await HydrationLog.create({ userId, amountMl, note });
+    const dateStr = date ? new Date(date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+
+    const { data: newRow, error } = await supabase
+      .from('hydration_logs')
+      .insert([
+        {
+          user_id: userId,
+          amount_ml: amountMl,
+          date: dateStr,
+        },
+      ])
+      .select()
+      .single();
+
+    if (error || !newRow) {
+      return res.status(500).json({ success: false, message: error?.message || 'Database insert failed' });
+    }
 
     res.status(201).json({
       success: true,
       message: 'Water intake logged successfully.',
-      data: { log },
+      data: { log: mapHydrationLog(newRow) },
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

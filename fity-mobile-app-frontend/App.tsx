@@ -10,6 +10,7 @@ import {
 import AppNavigator from '@/navigation/AppNavigator';
 import { AuthProvider } from '@/context/AuthContext';
 import { OnboardingProvider } from '@/context/OnboardingContext';
+import { LanguageProvider } from '@/context/LanguageContext';
 import { fontFamily } from '@/theme';
 
 const AppText = Text as typeof Text & {
@@ -45,11 +46,13 @@ export default function App() {
     }
 
     return (
-        <AuthProvider>
-            <OnboardingProvider>
-                <StatusBar style="dark" />
-                <AppNavigator />
-            </OnboardingProvider>
-        </AuthProvider>
+        <LanguageProvider>
+            <AuthProvider>
+                <OnboardingProvider>
+                    <StatusBar style="dark" />
+                    <AppNavigator />
+                </OnboardingProvider>
+            </AuthProvider>
+        </LanguageProvider>
     );
 }

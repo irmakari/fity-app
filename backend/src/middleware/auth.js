@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const { supabase } = require('../config/db');
+const { mapUser } = require('../utils/mapUser');
 const ApiError = require('../utils/ApiError');
 
 /**
@@ -26,15 +27,21 @@ const protect = async (req, res, next) => {
     // 2) Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // 3) Find user (exclude password)
-    const user = await User.findById(decoded.id).select('-passwordHash');
+    // 3) Find user in Supabase
+    const { data: userRow, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', decoded.id)
+      .single();
 
-    if (!user) {
+    if (error || !userRow) {
       throw new ApiError(401, 'The user belonging to this token no longer exists.');
     }
 
     // 4) Attach user to request
-    req.user = user;
+    req.user = mapUser(userRow);
+    delete req.user.passwordHash;
+
     next();
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {

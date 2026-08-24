@@ -9,8 +9,9 @@ import { AuthLinkText } from '@/components/auth/AuthLinkText';
 import { AuthLogo } from '@/components/auth/AuthLogo';
 import { useAuth } from '@/context/AuthContext';
 import { useOnboarding } from '@/context/OnboardingContext';
+import { useTranslation } from '@/context/LanguageContext';
 import { AuthStackParamList } from '@/navigation/AuthNavigator';
-import { registerMockUser } from '@/screens/auth/RegisterScreen/register.mock';
+import { postRegister } from '@/collections/auth/auth.service';
 import { globalStyles } from '@/theme';
 import { registerScreenStyles } from '@/screens/auth/RegisterScreen/RegisterScreen.styles';
 
@@ -22,11 +23,12 @@ const RegisterScreen = () => {
     const navigation = useNavigation<TRegisterScreenNavigationProp>();
     const { login } = useAuth();
     const { startOnboarding } = useOnboarding();
+    const { t } = useTranslation();
 
-    const [fullName, setFullName] = useState(registerMockUser.fullName);
-    const [email, setEmail] = useState(registerMockUser.email);
-    const [password, setPassword] = useState(registerMockUser.password);
-    const [confirmPassword, setConfirmPassword] = useState(registerMockUser.password);
+    const [fullName, setFullName] = useState('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
     const [loading, setLoading] = useState(false);
 
     const cleanedEmail = email.trim().toLowerCase();
@@ -43,8 +45,8 @@ const RegisterScreen = () => {
             return 'Please enter a valid email address.';
         }
 
-        if (trimmedPassword.length < 6) {
-            return 'Password must be at least 6 characters.';
+        if (trimmedPassword.length < 8) {
+            return 'Password must be at least 8 characters.';
         }
 
         if (trimmedPassword !== trimmedConfirmPassword) {
@@ -56,26 +58,26 @@ const RegisterScreen = () => {
 
     const handleRegister = async () => {
         if (validationMessage) {
-            Alert.alert('Error', validationMessage);
+            Alert.alert(t('common.error'), validationMessage);
             return;
         }
 
         try {
             setLoading(true);
 
-            const userPayload = {
-                id: `local-${Date.now()}`,
+            const res = await postRegister({
                 name: cleanedFullName,
                 email: cleanedEmail,
-            };
+                password: trimmedPassword,
+            });
 
-            // TODO: Replace local register simulation with real register API request.
-            // TODO: Persist the created user and onboarding payload when backend integration is available.
+            console.log('Register API success:', res);
             startOnboarding();
-            login(userPayload);
-        } catch (error) {
-            console.error('register error:', error);
-            Alert.alert('Error', 'Registration failed. Please try again.');
+            login(res.user);
+        } catch (error: any) {
+            console.error('register error:', error?.response?.data || error.message);
+            const msg = error?.response?.data?.message || 'Registration failed. Check password requirements (Min 8 chars, 1 Upper, 1 Lower, 1 Number, 1 Special Char).';
+            Alert.alert(t('common.error'), msg);
         } finally {
             setLoading(false);
         }
@@ -87,40 +89,40 @@ const RegisterScreen = () => {
                 <AuthLogo />
 
                 <AuthHeader
-                    title="Create Account"
-                    description="Set up your account to start building your workout plan."
+                    title={t('auth.register.title')}
+                    description={t('auth.register.description')}
                 />
 
                 <AuthInput
                     type="text"
-                    placeholder="Full Name"
+                    placeholder={t('auth.register.namePlaceholder')}
                     value={fullName}
                     onChange={setFullName}
                 />
 
                 <AuthInput
                     type="email"
-                    placeholder="Email"
+                    placeholder={t('auth.register.emailPlaceholder')}
                     value={email}
                     onChange={setEmail}
                 />
 
                 <AuthInput
                     type="password"
-                    placeholder="Password"
+                    placeholder={t('auth.register.passwordPlaceholder')}
                     value={password}
                     onChange={setPassword}
                 />
 
                 <AuthInput
                     type="password"
-                    placeholder="Confirm Password"
+                    placeholder={t('auth.register.confirmPasswordPlaceholder')}
                     value={confirmPassword}
                     onChange={setConfirmPassword}
                 />
 
                 <AuthButton
-                    label="REGISTER"
+                    label={t('auth.register.registerButton')}
                     onPress={handleRegister}
                     loading={loading}
                     disabled={!!validationMessage}
@@ -128,7 +130,7 @@ const RegisterScreen = () => {
 
                 <View style={registerScreenStyles.footerLinkContainer}>
                     <AuthLinkText
-                        label="Already have an account? Login"
+                        label={t('auth.register.alreadyHaveAccount')}
                         onPress={() => navigation.navigate('Login')}
                     />
                 </View>

@@ -1,0 +1,81 @@
+{
+  "common": {
+    "appName": "Fitty",
+    "save": "Save",
+    "cancel": "Cancel",
+    "continue": "Continue",
+    "back": "Back",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success"
+  },
+  "auth": {
+    "login": {
+      "title": "Welcome Back",
+      "description": "Log in to continue your fitness journey.",
+      "emailPlaceholder": "Email",
+      "passwordPlaceholder": "Password",
+      "forgotPassword": "Forgot Password?",
+      "loginButton": "LOGIN",
+      "noAccount": "Don't have an account? Register"
+    },
+    "register": {
+      "title": "Create Account",
+      "description": "Set up your account to start building your workout plan.",
+      "namePlaceholder": "Full Name",
+      "emailPlaceholder": "Email",
+      "passwordPlaceholder": "Password (e.g. Fitty2026!)",
+      "confirmPasswordPlaceholder": "Confirm Password",
+      "registerButton": "REGISTER",
+      "alreadyHaveAccount": "Already have an account? Login"
+    }
+  },
+  "onboarding": {
+    "welcome": "Welcome to Fitty!",
+    "step1Title": "Select Your Goal",
+    "step2Title": "Physical Stats",
+    "step3Title": "Workout Preferences",
+    "completeButton": "Complete and Get Started"
+  },
+  "home": {
+    "greeting": "Hello 👋",
+    "todaySummary": "Today's Summary",
+    "calories": "Calories",
+    "water": "Water Intake",
+    "workout": "Workout",
+    "startWorkout": "Start Workout"
+  },
+  "hydration": {
+    "title": "Hydration Tracker",
+    "dailyGoal": "Daily Goal",
+    "consumed": "Consumed",
+    "remaining": "Remaining",
+    "addWater": "Add Water",
+    "unitMl": "ml"
+  },
+  "workout": {
+    "title": "Workouts",
+    "myPlans": "My Workout Plans",
+    "exercises": "Exercise Library",
+    "startSession": "Start Session",
+    "finishSession": "Finish Workout",
+    "sets": "Sets",
+    "reps": "Reps",
+    "weight": "Weight (kg)"
+  },
+  "nutrition": {
+    "title": "Nutrition & Meals",
+    "breakfast": "Breakfast",
+    "lunch": "Lunch",
+    "dinner": "Dinner",
+    "snack": "Snack",
+    "aiSnackSuggest": "AI Snack Suggestion",
+    "addFood": "Add Food"
+  },
+  "profile": {
+    "title": "My Profile",
+    "language": "App Language",
+    "notifications": "Notifications",
+    "logout": "Log Out"
+  }
+}

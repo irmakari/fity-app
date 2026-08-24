@@ -1,5 +1,6 @@
 const { body } = require('express-validator');
-const User = require('../models/User');
+const { supabase } = require('../config/db');
+const { mapUser } = require('../utils/mapUser');
 const ApiError = require('../utils/ApiError');
 
 // ============================================================
@@ -58,11 +59,6 @@ const completeOnboardingValidation = [
 // CONTROLLER METHODS
 // ============================================================
 
-/**
- * @desc    Complete onboarding — save all preferences & physical stats
- * @route   POST /api/onboarding/complete
- * @access  Private
- */
 const completeOnboarding = async (req, res, next) => {
   try {
     const {
@@ -77,33 +73,37 @@ const completeOnboarding = async (req, res, next) => {
       targetWeightKg,
     } = req.body;
 
-    const user = await User.findByIdAndUpdate(
-      req.user._id,
-      {
-        goalType,
-        fitnessLevel,
-        weeklyWorkoutTarget,
-        trainingLocation,
-        focusMuscles,
+    const { data: updatedRow, error } = await supabase
+      .from('users')
+      .update({
+        goal_type: goalType,
+        fitness_level: fitnessLevel,
+        weekly_workout_target: weeklyWorkoutTarget,
+        training_location: trainingLocation,
+        focus_muscles: focusMuscles,
         age,
-        heightCm,
-        currentWeightKg,
-        targetWeightKg,
-        isOnboarded: true,
-      },
-      { new: true, runValidators: true }
-    );
+        height_cm: heightCm,
+        current_weight_kg: currentWeightKg,
+        target_weight_kg: targetWeightKg,
+        is_onboarded: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', req.user.id)
+      .select()
+      .single();
 
-    if (!user) {
-      throw new ApiError(404, 'User not found.');
+    if (error || !updatedRow) {
+      throw new ApiError(404, 'User not found or update failed.');
     }
+
+    const user = mapUser(updatedRow);
 
     res.status(200).json({
       success: true,
       message: 'Onboarding completed successfully.',
       data: {
         user: {
-          id: user._id,
+          id: user.id,
           name: user.name,
           email: user.email,
           isOnboarded: user.isOnboarded,
@@ -128,23 +128,22 @@ const completeOnboarding = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Get onboarding status
- * @route   GET /api/onboarding/status
- * @access  Private
- */
 const getOnboardingStatus = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user._id);
+    const { data: userRow, error } = await supabase
+      .from('users')
+      .select('is_onboarded')
+      .eq('id', req.user.id)
+      .single();
 
-    if (!user) {
+    if (error || !userRow) {
       throw new ApiError(404, 'User not found.');
     }
 
     res.status(200).json({
       success: true,
       data: {
-        isOnboarded: user.isOnboarded,
+        isOnboarded: userRow.is_onboarded ?? false,
       },
     });
   } catch (error) {

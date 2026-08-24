@@ -11,6 +11,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { postLogin } from '@/collections/auth/auth.service';
 import { useAuth } from '@/context/AuthContext';
 import { useOnboarding } from '@/context/OnboardingContext';
+import { useTranslation } from '@/context/LanguageContext';
 import { AuthStackParamList } from '@/navigation/AuthNavigator';
 
 type LoginScreenNavigationProp = NativeStackNavigationProp<AuthStackParamList, 'Login'>;
@@ -19,6 +20,7 @@ const LoginScreen = () => {
     const navigation = useNavigation<LoginScreenNavigationProp>();
     const { login } = useAuth();
     const { resetOnboarding } = useOnboarding();
+    const { t } = useTranslation();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
@@ -30,32 +32,26 @@ const LoginScreen = () => {
             const cleanedEmail = email.trim().toLowerCase();
             const cleanedPassword = password.trim();
 
-            console.log('Attempting login with:', { cleanedEmail, cleanedPassword });
+            if (!cleanedEmail || !cleanedPassword) {
+                Alert.alert(t('common.error'), 'Lütfen e-posta ve şifrenizi girin.');
+                return;
+            }
 
-            const response = await postLogin({
+            const res = await postLogin({
                 email: cleanedEmail,
                 password: cleanedPassword,
             });
 
-            console.log('Login API response:', response);
+            console.log('Login API response:', res);
 
-            // Client-side filtreleme: API tüm kullanıcıları döndürüyor
-            const matchedUser = response.find(
-                (user: any) =>
-                    user.email === cleanedEmail && user.password === cleanedPassword
-            );
-
-            if (matchedUser) {
-                console.log('Login successful:', matchedUser);
+            if (res && res.user) {
                 resetOnboarding();
-                login(matchedUser);
-            } else {
-                console.log('No user matched the credentials');
-                Alert.alert('Hata', 'Geçersiz e-posta veya şifre');
+                login(res.user);
             }
-        } catch (error) {
-            console.error('login error:', error);
-            Alert.alert('Hata', 'Giriş yapılırken bir hata oluştu');
+        } catch (error: any) {
+            console.error('login error:', error?.response?.data || error.message);
+            const msg = error?.response?.data?.message || 'Geçersiz e-posta veya şifre';
+            Alert.alert(t('common.error'), msg);
         } finally {
             setLoading(false);
         }
@@ -67,40 +63,40 @@ const LoginScreen = () => {
                 <AuthLogo />
 
                 <AuthHeader
-                    title="Welcome Back"
-                    description="Log in to continue your fitness journey."
+                    title={t('auth.login.title')}
+                    description={t('auth.login.description')}
                 />
 
                 <AuthInput
                     type="email"
-                    placeholder="Email"
+                    placeholder={t('auth.login.emailPlaceholder')}
                     value={email}
                     onChange={setEmail}
                 />
 
                 <AuthInput
                     type="password"
-                    placeholder="Password"
+                    placeholder={t('auth.login.passwordPlaceholder')}
                     value={password}
                     onChange={setPassword}
                 />
 
                 <View style={globalStyles.linkContainer}>
                     <AuthLinkText
-                        label="Forgot Password?"
+                        label={t('auth.login.forgotPassword')}
                         onPress={() => navigation.navigate('ForgotPassword')}
                     />
                 </View>
 
                 <AuthButton
-                    label="LOGIN"
+                    label={t('auth.login.loginButton')}
                     onPress={handleLogin}
                     loading={loading}
                 />
 
                 <View style={styles.registerLinkContainer}>
                     <AuthLinkText
-                        label="Don't have an account? Register"
+                        label={t('auth.login.noAccount')}
                         onPress={() => navigation.navigate('Register')}
                     />
                 </View>

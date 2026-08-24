@@ -1,14 +1,12 @@
 const { body } = require('express-validator');
-const User = require('../models/User');
+const { supabase } = require('../config/db');
+const { mapUser } = require('../utils/mapUser');
 const ApiError = require('../utils/ApiError');
 
 // ============================================================
 // VALIDATION RULES
 // ============================================================
 
-/**
- * Profile update validation rules.
- */
 const updateProfileValidation = [
   body('name')
     .optional()
@@ -57,9 +55,6 @@ const updateProfileValidation = [
     .withMessage('Focus muscles must be an array.'),
 ];
 
-/**
- * Notification preferences validation rules.
- */
 const updateNotificationsValidation = [
   body('notificationWorkoutReminders')
     .optional()
@@ -79,24 +74,25 @@ const updateNotificationsValidation = [
 // CONTROLLER METHODS
 // ============================================================
 
-/**
- * @desc    Get current user's profile
- * @route   GET /api/profile
- * @access  Private
- */
 const getProfile = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user._id);
+    const { data: userRow, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', req.user.id)
+      .single();
 
-    if (!user) {
+    if (error || !userRow) {
       throw new ApiError(404, 'User not found.');
     }
+
+    const user = mapUser(userRow);
 
     res.status(200).json({
       success: true,
       data: {
         profile: {
-          id: user._id,
+          id: user.id,
           name: user.name,
           email: user.email,
           goalType: user.goalType,
@@ -127,32 +123,26 @@ const getProfile = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Update current user's profile
- * @route   PATCH /api/profile
- * @access  Private
- */
 const updateProfile = async (req, res, next) => {
   try {
-    // Only allow these fields to be updated (whitelist)
-    const allowedFields = [
-      'name',
-      'age',
-      'heightCm',
-      'currentWeightKg',
-      'targetWeightKg',
-      'goalType',
-      'fitnessLevel',
-      'weeklyWorkoutTarget',
-      'activityLevel',
-      'trainingLocation',
-      'focusMuscles',
-    ];
+    const fieldMapping = {
+      name: 'name',
+      age: 'age',
+      heightCm: 'height_cm',
+      currentWeightKg: 'current_weight_kg',
+      targetWeightKg: 'target_weight_kg',
+      goalType: 'goal_type',
+      fitnessLevel: 'fitness_level',
+      weeklyWorkoutTarget: 'weekly_workout_target',
+      activityLevel: 'activity_level',
+      trainingLocation: 'training_location',
+      focusMuscles: 'focus_muscles',
+    };
 
     const updates = {};
-    allowedFields.forEach((field) => {
+    Object.keys(fieldMapping).forEach((field) => {
       if (req.body[field] !== undefined) {
-        updates[field] = req.body[field];
+        updates[fieldMapping[field]] = req.body[field];
       }
     });
 
@@ -160,21 +150,27 @@ const updateProfile = async (req, res, next) => {
       throw new ApiError(400, 'No valid fields to update.');
     }
 
-    const user = await User.findByIdAndUpdate(req.user._id, updates, {
-      new: true,
-      runValidators: true,
-    });
+    updates.updated_at = new Date().toISOString();
 
-    if (!user) {
-      throw new ApiError(404, 'User not found.');
+    const { data: updatedRow, error } = await supabase
+      .from('users')
+      .update(updates)
+      .eq('id', req.user.id)
+      .select()
+      .single();
+
+    if (error || !updatedRow) {
+      throw new ApiError(404, 'User not found or update failed.');
     }
+
+    const user = mapUser(updatedRow);
 
     res.status(200).json({
       success: true,
       message: 'Profile updated successfully.',
       data: {
         profile: {
-          id: user._id,
+          id: user.id,
           name: user.name,
           email: user.email,
           goalType: user.goalType,
@@ -205,23 +201,18 @@ const updateProfile = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Update notification preferences
- * @route   PATCH /api/profile/notifications
- * @access  Private
- */
 const updateNotifications = async (req, res, next) => {
   try {
-    const allowedFields = [
-      'notificationWorkoutReminders',
-      'notificationWaterReminders',
-      'notificationWeeklyReports',
-    ];
+    const fieldMapping = {
+      notificationWorkoutReminders: 'notification_workout_reminders',
+      notificationWaterReminders: 'notification_water_reminders',
+      notificationWeeklyReports: 'notification_weekly_reports',
+    };
 
     const updates = {};
-    allowedFields.forEach((field) => {
+    Object.keys(fieldMapping).forEach((field) => {
       if (req.body[field] !== undefined) {
-        updates[field] = req.body[field];
+        updates[fieldMapping[field]] = req.body[field];
       }
     });
 
@@ -229,14 +220,20 @@ const updateNotifications = async (req, res, next) => {
       throw new ApiError(400, 'No valid fields to update.');
     }
 
-    const user = await User.findByIdAndUpdate(req.user._id, updates, {
-      new: true,
-      runValidators: true,
-    });
+    updates.updated_at = new Date().toISOString();
 
-    if (!user) {
+    const { data: updatedRow, error } = await supabase
+      .from('users')
+      .update(updates)
+      .eq('id', req.user.id)
+      .select()
+      .single();
+
+    if (error || !updatedRow) {
       throw new ApiError(404, 'User not found.');
     }
+
+    const user = mapUser(updatedRow);
 
     res.status(200).json({
       success: true,

@@ -1,38 +1,44 @@
-const Food = require('../models/Food');
+const { supabase } = require('../config/db');
 const { searchFood: offSearch } = require('../services/openFoodFactsService');
 const { lookupFoodNutrition } = require('../ai/foodAI');
 const ApiError = require('../utils/ApiError');
 
-// ============================================================
-// SEARCH — Hybrid: DB → Open Food Facts → Gemini AI
-// ============================================================
+const mapFood = (row) => {
+  if (!row) return null;
+  return {
+    _id: row.id,
+    id: row.id,
+    name: row.name,
+    caloriesPerServing: Number(row.calories || 0),
+    calories: Number(row.calories || 0),
+    proteinG: Number(row.protein_g || 0),
+    carbsG: Number(row.carbs_g || 0),
+    fatG: Number(row.fat_g || 0),
+    servingSize: Number(row.serving_size_g || 100),
+    servingUnit: row.serving_size || 'g',
+    brand: row.brand,
+    source: row.source,
+    createdAt: row.created_at,
+  };
+};
 
-/**
- * GET /api/foods/search?q=kuymak
- *
- * Step 1: Search our own Food collection (text index).
- * Step 2: If nothing found, query Open Food Facts (free, no key).
- * Step 3: If still nothing, fall back to Gemini AI.
- * Step 4: Cache any external result in our DB for future queries.
- */
 exports.searchFood = async (req, res, next) => {
   try {
     const query = (req.query.q || '').trim();
     if (!query) throw new ApiError(400, 'Search query (q) is required.');
 
-    // ── Step 1: Local DB ──────────────────────────────────────
-    const dbResults = await Food.find(
-      { $text: { $search: query } },
-      { score: { $meta: 'textScore' } }
-    )
-      .sort({ score: { $meta: 'textScore' } })
+    // ── Step 1: Local DB Search ───────────────────────────────
+    const { data: dbRows } = await supabase
+      .from('foods')
+      .select('*')
+      .ilike('name', `%${query}%`)
       .limit(10);
 
-    if (dbResults.length > 0) {
+    if (dbRows && dbRows.length > 0) {
       return res.status(200).json({
         success: true,
         source: 'database',
-        data: dbResults,
+        data: dbRows.map(mapFood),
       });
     }
 
@@ -40,17 +46,29 @@ exports.searchFood = async (req, res, next) => {
     const offResult = await offSearch(query);
 
     if (offResult) {
-      // Cache in DB — ignore duplicate key errors
-      const saved = await Food.findOneAndUpdate(
-        { name: { $regex: new RegExp(`^${offResult.name}$`, 'i') } },
-        { $setOnInsert: offResult },
-        { upsert: true, new: true, runValidators: true }
-      );
+      const { data: saved, error } = await supabase
+        .from('foods')
+        .insert([
+          {
+            name: offResult.name,
+            calories: offResult.caloriesPerServing || offResult.calories || 0,
+            protein_g: offResult.proteinG || 0,
+            carbs_g: offResult.carbsG || 0,
+            fat_g: offResult.fatG || 0,
+            serving_size_g: offResult.servingSize || 100,
+            serving_size: offResult.servingUnit || 'g',
+            source: 'open_food_facts',
+          },
+        ])
+        .select()
+        .single();
+
+      const resultObj = saved ? mapFood(saved) : offResult;
 
       return res.status(200).json({
         success: true,
         source: 'open_food_facts',
-        data: [saved],
+        data: [resultObj],
       });
     }
 
@@ -58,20 +76,32 @@ exports.searchFood = async (req, res, next) => {
     const aiResult = await lookupFoodNutrition(query);
 
     if (aiResult) {
-      const saved = await Food.findOneAndUpdate(
-        { name: { $regex: new RegExp(`^${aiResult.name}$`, 'i') } },
-        { $setOnInsert: aiResult },
-        { upsert: true, new: true, runValidators: true }
-      );
+      const { data: saved } = await supabase
+        .from('foods')
+        .insert([
+          {
+            name: aiResult.name || query,
+            calories: aiResult.caloriesPerServing || aiResult.calories || 0,
+            protein_g: aiResult.proteinG || 0,
+            carbs_g: aiResult.carbsG || 0,
+            fat_g: aiResult.fatG || 0,
+            serving_size_g: aiResult.servingSize || 100,
+            serving_size: aiResult.servingUnit || 'g',
+            source: 'ai',
+          },
+        ])
+        .select()
+        .single();
+
+      const resultObj = saved ? mapFood(saved) : aiResult;
 
       return res.status(200).json({
         success: true,
         source: 'ai',
-        data: [saved],
+        data: [resultObj],
       });
     }
 
-    // ── Nothing found ─────────────────────────────────────────
     return res.status(200).json({
       success: true,
       source: 'none',
@@ -83,61 +113,69 @@ exports.searchFood = async (req, res, next) => {
   }
 };
 
-// ============================================================
-// CREATE — Manual food entry by user
-// ============================================================
-
-/**
- * POST /api/foods
- * Body: { name, caloriesPerServing, proteinG, carbsG, fatG, servingSize, servingUnit }
- */
 exports.createFood = async (req, res, next) => {
   try {
-    const { name, caloriesPerServing, proteinG, carbsG, fatG, servingSize, servingUnit } =
+    const { name, caloriesPerServing, calories, proteinG, carbsG, fatG, servingSize, servingUnit } =
       req.body;
 
-    if (!name || caloriesPerServing === undefined) {
-      throw new ApiError(400, 'name and caloriesPerServing are required.');
+    const foodName = (name || '').trim();
+    const cals = caloriesPerServing !== undefined ? caloriesPerServing : calories;
+
+    if (!foodName || cals === undefined) {
+      throw new ApiError(400, 'name and calories are required.');
     }
 
-    // Prevent exact-name duplicates (case-insensitive)
-    const existing = await Food.findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') } });
+    const { data: existing } = await supabase
+      .from('foods')
+      .select('*')
+      .ilike('name', foodName)
+      .maybeSingle();
+
     if (existing) {
       return res.status(200).json({
         success: true,
         message: 'Food already exists.',
-        data: existing,
+        data: mapFood(existing),
       });
     }
 
-    const food = await Food.create({
-      name: name.trim(),
-      caloriesPerServing,
-      proteinG: proteinG || 0,
-      carbsG: carbsG || 0,
-      fatG: fatG || 0,
-      servingSize: servingSize || 100,
-      servingUnit: servingUnit || 'g',
-    });
+    const { data: newRow, error } = await supabase
+      .from('foods')
+      .insert([
+        {
+          name: foodName,
+          calories: cals,
+          protein_g: proteinG || 0,
+          carbs_g: carbsG || 0,
+          fat_g: fatG || 0,
+          serving_size_g: servingSize || 100,
+          serving_size: servingUnit || 'g',
+          source: 'custom',
+        },
+      ])
+      .select()
+      .single();
 
-    res.status(201).json({ success: true, data: food });
+    if (error || !newRow) {
+      throw new ApiError(500, `Failed to create food: ${error?.message}`);
+    }
+
+    res.status(201).json({ success: true, data: mapFood(newRow) });
   } catch (err) {
     next(err);
   }
 };
 
-// ============================================================
-// GET BY ID
-// ============================================================
-
-/**
- * GET /api/foods/:id
- */
 exports.getFoodById = async (req, res, next) => {
   try {
-    const food = await Food.findById(req.params.id);
-    if (!food) throw new ApiError(404, 'Food not found.');
-    res.status(200).json({ success: true, data: food });
+    const { data: row, error } = await supabase
+      .from('foods')
+      .select('*')
+      .eq('id', req.params.id)
+      .maybeSingle();
+
+    if (error || !row) throw new ApiError(404, 'Food not found.');
+    res.status(200).json({ success: true, data: mapFood(row) });
   } catch (err) {
     next(err);
   }

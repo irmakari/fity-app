@@ -1,7 +1,6 @@
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
-const mongoSanitize = require('express-mongo-sanitize');
 const hpp = require('hpp');
 const { generalLimiter } = require('./middleware/rateLimiter');
 const errorHandler = require('./middleware/errorHandler');
@@ -29,7 +28,7 @@ app.use(helmet());
 // CORS configuration
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:3000',
+    origin: process.env.CLIENT_URL || '*',
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -39,12 +38,9 @@ app.use(
 // Rate limiting
 app.use('/api', generalLimiter);
 
-// Body parsing (limit: 10kb — protection against large payload attacks)
+// Body parsing (limit: 10kb)
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
-
-// MongoDB NoSQL injection protection
-app.use(mongoSanitize());
 
 // HTTP parameter pollution protection
 app.use(hpp());
@@ -57,7 +53,7 @@ app.use(hpp());
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     success: true,
-    message: 'Fitty API is running. 🏋️',
+    message: 'Fitty API is running with Supabase. 🏋️⚡',
     timestamp: new Date().toISOString(),
   });
 });

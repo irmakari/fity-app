@@ -1,6 +1,8 @@
 const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 const { body } = require('express-validator');
-const User = require('../models/User');
+const { supabase } = require('../config/db');
+const { mapUser } = require('../utils/mapUser');
 const ApiError = require('../utils/ApiError');
 const generateToken = require('../utils/generateToken');
 const sendEmail = require('../utils/sendEmail');
@@ -9,9 +11,6 @@ const sendEmail = require('../utils/sendEmail');
 // VALIDATION RULES
 // ============================================================
 
-/**
- * Register validation rules.
- */
 const registerValidation = [
   body('name')
     .trim()
@@ -41,9 +40,6 @@ const registerValidation = [
     .withMessage('Password must contain at least one special character.'),
 ];
 
-/**
- * Login validation rules.
- */
 const loginValidation = [
   body('email')
     .trim()
@@ -57,9 +53,6 @@ const loginValidation = [
     .withMessage('Password is required.'),
 ];
 
-/**
- * Forgot password validation rules.
- */
 const forgotPasswordValidation = [
   body('email')
     .trim()
@@ -70,9 +63,6 @@ const forgotPasswordValidation = [
     .normalizeEmail(),
 ];
 
-/**
- * OTP verification validation rules.
- */
 const verifyOTPValidation = [
   body('email')
     .trim()
@@ -91,9 +81,6 @@ const verifyOTPValidation = [
     .withMessage('OTP code must contain only digits.'),
 ];
 
-/**
- * Reset password validation rules.
- */
 const resetPasswordValidation = [
   body('email')
     .trim()
@@ -130,9 +117,6 @@ const resetPasswordValidation = [
     }),
 ];
 
-/**
- * Resend OTP validation rules.
- */
 const resendOTPValidation = [
   body('email')
     .trim()
@@ -147,37 +131,54 @@ const resendOTPValidation = [
 // CONTROLLER METHODS
 // ============================================================
 
-/**
- * @desc    Register a new user
- * @route   POST /api/auth/register
- * @access  Public
- */
 const register = async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
 
     // Check if email already exists
-    const existingUser = await User.findOne({ email });
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .maybeSingle();
+
     if (existingUser) {
       throw new ApiError(400, 'This email address is already registered.');
     }
 
-    // Create user (passwordHash will be hashed via pre-save hook)
-    const user = await User.create({
-      name,
-      email,
-      passwordHash: password,
-    });
+    // Hash password
+    const salt = await bcrypt.genSalt(12);
+    const passwordHash = await bcrypt.hash(password, salt);
+
+    // Insert user into Supabase
+    const { data: newUser, error } = await supabase
+      .from('users')
+      .insert([
+        {
+          name,
+          email,
+          password_hash: passwordHash,
+          is_onboarded: false,
+        },
+      ])
+      .select()
+      .single();
+
+    if (error || !newUser) {
+      throw new ApiError(500, `Failed to register user: ${error?.message || 'Database error'}`);
+    }
+
+    const user = mapUser(newUser);
 
     // Generate JWT token
-    const token = generateToken(user._id);
+    const token = generateToken(user.id);
 
     res.status(201).json({
       success: true,
       message: 'Registration successful. Welcome!',
       data: {
         user: {
-          id: user._id,
+          id: user.id,
           name: user.name,
           email: user.email,
         },
@@ -189,38 +190,38 @@ const register = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    User login
- * @route   POST /api/auth/login
- * @access  Public
- */
 const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    // Find user (include passwordHash)
-    const user = await User.findOne({ email }).select('+passwordHash');
+    // Find user
+    const { data: userRow } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .maybeSingle();
 
-    if (!user) {
-      // Security: non-specific error message (email enumeration protection)
+    if (!userRow) {
       throw new ApiError(401, 'Invalid email or password.');
     }
 
     // Check password
-    const isPasswordCorrect = await user.comparePassword(password);
+    const isPasswordCorrect = await bcrypt.compare(password, userRow.password_hash);
     if (!isPasswordCorrect) {
       throw new ApiError(401, 'Invalid email or password.');
     }
 
+    const user = mapUser(userRow);
+
     // Generate JWT token
-    const token = generateToken(user._id);
+    const token = generateToken(user.id);
 
     res.status(200).json({
       success: true,
       message: 'Login successful.',
       data: {
         user: {
-          id: user._id,
+          id: user.id,
           name: user.name,
           email: user.email,
         },
@@ -232,35 +233,43 @@ const login = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Send password reset OTP via email
- * @route   POST /api/auth/forgot-password
- * @access  Public
- */
 const forgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
 
-    const user = await User.findOne({ email });
+    const { data: userRow } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .maybeSingle();
 
-    if (!user) {
-      // Security: email enumeration protection — always return the same message
+    if (!userRow) {
       return res.status(200).json({
         success: true,
         message: 'If this email address is registered, a password reset code has been sent.',
       });
     }
 
-    // Generate and save OTP
-    const otp = user.createPasswordResetOTP();
-    await user.save({ validateBeforeSave: false });
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const hashedOTP = crypto.createHash('sha256').update(otp).digest('hex');
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+    // Save OTP to DB
+    await supabase
+      .from('users')
+      .update({
+        password_reset_otp: hashedOTP,
+        password_reset_otp_expires: otpExpires,
+      })
+      .eq('id', userRow.id);
 
     // Send email
     const htmlContent = `
       <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #f8fafc; border-radius: 12px;">
         <h1 style="color: #1e293b; font-size: 24px; margin-bottom: 8px;">🔐 Fitty Password Reset</h1>
         <p style="color: #475569; font-size: 15px; line-height: 1.6;">
-          Hello <strong>${user.name}</strong>,
+          Hello <strong>${userRow.name}</strong>,
         </p>
         <p style="color: #475569; font-size: 15px; line-height: 1.6;">
           We received a password reset request. Use the code below to reset your password:
@@ -281,16 +290,19 @@ const forgotPassword = async (req, res, next) => {
 
     try {
       await sendEmail({
-        to: user.email,
+        to: userRow.email,
         subject: 'Fitty - Password Reset Code',
         html: htmlContent,
       });
     } catch (emailError) {
       console.error('📧 Email sending error:', emailError.message);
-      // If email sending fails, clear OTP
-      user.passwordResetOTP = undefined;
-      user.passwordResetOTPExpires = undefined;
-      await user.save({ validateBeforeSave: false });
+      await supabase
+        .from('users')
+        .update({
+          password_reset_otp: null,
+          password_reset_otp_expires: null,
+        })
+        .eq('id', userRow.id);
 
       throw new ApiError(500, 'Failed to send email. Please try again later.');
     }
@@ -304,34 +316,38 @@ const forgotPassword = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Verify OTP code
- * @route   POST /api/auth/verify-otp
- * @access  Public
- */
 const verifyOTP = async (req, res, next) => {
   try {
     const { email, otp } = req.body;
 
-    // Hash OTP and compare
-    const hashedOTP = crypto
-      .createHash('sha256')
-      .update(otp)
-      .digest('hex');
+    const hashedOTP = crypto.createHash('sha256').update(otp).digest('hex');
 
-    const user = await User.findOne({
-      email,
-      passwordResetOTP: hashedOTP,
-      passwordResetOTPExpires: { $gt: Date.now() },
-    }).select('+passwordResetOTP +passwordResetOTPExpires');
+    const { data: userRow } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .eq('password_reset_otp', hashedOTP)
+      .gt('password_reset_otp_expires', new Date().toISOString())
+      .maybeSingle();
 
-    if (!user) {
+    if (!userRow) {
       throw new ApiError(400, 'Invalid or expired OTP code.');
     }
 
-    // Generate temporary reset token
-    const resetToken = user.createPasswordResetToken();
-    await user.save({ validateBeforeSave: false });
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+    const tokenExpires = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+
+    await supabase
+      .from('users')
+      .update({
+        password_reset_token: hashedToken,
+        password_reset_token_expires: tokenExpires,
+        password_reset_otp: null,
+        password_reset_otp_expires: null,
+      })
+      .eq('id', userRow.id);
 
     res.status(200).json({
       success: true,
@@ -345,39 +361,37 @@ const verifyOTP = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Reset password with token
- * @route   POST /api/auth/reset-password
- * @access  Public
- */
 const resetPassword = async (req, res, next) => {
   try {
     const { email, resetToken, newPassword } = req.body;
 
-    // Hash reset token and compare
-    const hashedToken = crypto
-      .createHash('sha256')
-      .update(resetToken)
-      .digest('hex');
+    const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
 
-    const user = await User.findOne({
-      email,
-      passwordResetToken: hashedToken,
-      passwordResetTokenExpires: { $gt: Date.now() },
-    }).select('+passwordResetToken +passwordResetTokenExpires');
+    const { data: userRow } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .eq('password_reset_token', hashedToken)
+      .gt('password_reset_token_expires', new Date().toISOString())
+      .maybeSingle();
 
-    if (!user) {
+    if (!userRow) {
       throw new ApiError(400, 'Invalid or expired reset token.');
     }
 
-    // Set new password (will be hashed via pre-save hook)
-    user.passwordHash = newPassword;
-    user.passwordResetToken = undefined;
-    user.passwordResetTokenExpires = undefined;
-    await user.save();
+    const salt = await bcrypt.genSalt(12);
+    const passwordHash = await bcrypt.hash(newPassword, salt);
 
-    // Generate new token (auto-login)
-    const token = generateToken(user._id);
+    await supabase
+      .from('users')
+      .update({
+        password_hash: passwordHash,
+        password_reset_token: null,
+        password_reset_token_expires: null,
+      })
+      .eq('id', userRow.id);
+
+    const token = generateToken(userRow.id);
 
     res.status(200).json({
       success: true,
@@ -391,30 +405,25 @@ const resetPassword = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Resend OTP code (with 30-second cooldown)
- * @route   POST /api/auth/resend-otp
- * @access  Public
- */
 const resendOTP = async (req, res, next) => {
   try {
     const { email } = req.body;
 
-    const user = await User.findOne({ email }).select(
-      '+passwordResetOTP +passwordResetOTPExpires'
-    );
+    const { data: userRow } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .maybeSingle();
 
-    if (!user) {
-      // Security: email enumeration protection
+    if (!userRow) {
       return res.status(200).json({
         success: true,
         message: 'If this email address is registered, a new code has been sent.',
       });
     }
 
-    // Cooldown check: prevent resend within 30 seconds
-    if (user.passwordResetOTPExpires) {
-      const otpCreatedAt = new Date(user.passwordResetOTPExpires).getTime() - 10 * 60 * 1000;
+    if (userRow.password_reset_otp_expires) {
+      const otpCreatedAt = new Date(userRow.password_reset_otp_expires).getTime() - 10 * 60 * 1000;
       const secondsSinceLastOTP = (Date.now() - otpCreatedAt) / 1000;
       if (secondsSinceLastOTP < 30) {
         const remainingSeconds = Math.ceil(30 - secondsSinceLastOTP);
@@ -422,16 +431,23 @@ const resendOTP = async (req, res, next) => {
       }
     }
 
-    // Generate new OTP
-    const otp = user.createPasswordResetOTP();
-    await user.save({ validateBeforeSave: false });
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const hashedOTP = crypto.createHash('sha256').update(otp).digest('hex');
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
-    // Send email
+    await supabase
+      .from('users')
+      .update({
+        password_reset_otp: hashedOTP,
+        password_reset_otp_expires: otpExpires,
+      })
+      .eq('id', userRow.id);
+
     const htmlContent = `
       <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #f8fafc; border-radius: 12px;">
         <h1 style="color: #1e293b; font-size: 24px; margin-bottom: 8px;">🔐 Fitty Password Reset</h1>
         <p style="color: #475569; font-size: 15px; line-height: 1.6;">
-          Hello <strong>${user.name}</strong>,
+          Hello <strong>${userRow.name}</strong>,
         </p>
         <p style="color: #475569; font-size: 15px; line-height: 1.6;">
           Here is your new verification code:
@@ -452,15 +468,19 @@ const resendOTP = async (req, res, next) => {
 
     try {
       await sendEmail({
-        to: user.email,
+        to: userRow.email,
         subject: 'Fitty - New Verification Code',
         html: htmlContent,
       });
     } catch (emailError) {
       console.error('📧 Email sending error:', emailError.message);
-      user.passwordResetOTP = undefined;
-      user.passwordResetOTPExpires = undefined;
-      await user.save({ validateBeforeSave: false });
+      await supabase
+        .from('users')
+        .update({
+          password_reset_otp: null,
+          password_reset_otp_expires: null,
+        })
+        .eq('id', userRow.id);
 
       throw new ApiError(500, 'Failed to send email. Please try again later.');
     }

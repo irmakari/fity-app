@@ -1,0 +1,81 @@
+{
+  "common": {
+    "appName": "Fitty",
+    "save": "Kaydet",
+    "cancel": "İptal",
+    "continue": "Devam Et",
+    "back": "Geri",
+    "loading": "Yükleniyor...",
+    "error": "Hata",
+    "success": "Başarılı"
+  },
+  "auth": {
+    "login": {
+      "title": "Tekrar Hoş Geldin",
+      "description": "Fitness yolculuğuna devam etmek için giriş yap.",
+      "emailPlaceholder": "E-posta",
+      "passwordPlaceholder": "Şifre",
+      "forgotPassword": "Şifremi Unuttum",
+      "loginButton": "GİRİŞ YAP",
+      "noAccount": "Hesabın yok mu? Kayıt Ol"
+    },
+    "register": {
+      "title": "Hesap Oluştur",
+      "description": "Antrenman planını oluşturmaya başlamak için kaydol.",
+      "namePlaceholder": "Ad Soyad",
+      "emailPlaceholder": "E-posta",
+      "passwordPlaceholder": "Şifre (Örn: Fitty2026!)",
+      "confirmPasswordPlaceholder": "Şifreyi Onayla",
+      "registerButton": "KAYIT OL",
+      "alreadyHaveAccount": "Zaten hesabın var mı? Giriş Yap"
+    }
+  },
+  "onboarding": {
+    "welcome": "Fitty'ye Hoş Geldin!",
+    "step1Title": "Hedefini Seç",
+    "step2Title": "Fiziksel Bilgiler",
+    "step3Title": "Antrenman Tercihleri",
+    "completeButton": "Tamamla ve Başla"
+  },
+  "home": {
+    "greeting": "Merhaba 👋",
+    "todaySummary": "Bugünkü Özetin",
+    "calories": "Kalori",
+    "water": "Su Tüketimi",
+    "workout": "Antrenman",
+    "startWorkout": "Antrenmana Başla"
+  },
+  "hydration": {
+    "title": "Su Takibi",
+    "dailyGoal": "Günlük Hedef",
+    "consumed": "İçilen",
+    "remaining": "Kalan",
+    "addWater": "Su Ekle",
+    "unitMl": "ml"
+  },
+  "workout": {
+    "title": "Antrenmanlar",
+    "myPlans": "Antrenman Planlarım",
+    "exercises": "Egzersiz Kütüphanesi",
+    "startSession": "Oturumu Başlat",
+    "finishSession": "Antrenmanı Bitir",
+    "sets": "Setler",
+    "reps": "Tekrar",
+    "weight": "Ağırlık (kg)"
+  },
+  "nutrition": {
+    "title": "Beslenme ve Öğünler",
+    "breakfast": "Kahvaltı",
+    "lunch": "Öğle Yemeği",
+    "dinner": "Akşam Yemeği",
+    "snack": "Atıştırmalık",
+    "aiSnackSuggest": "AI Atıştırmalık Önerisi",
+    "addFood": "Yemek Ekle"
+  },
+  "profile": {
+    "title": "Profilim",
+    "language": "Uygulama Dili",
+    "notifications": "Bildirimler",
+    "logout": "Çıkış Yap"
+  }
+}

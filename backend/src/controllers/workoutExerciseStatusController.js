@@ -1,23 +1,14 @@
 const { body, query } = require('express-validator');
-const mongoose = require('mongoose');
-const WorkoutExerciseStatus = require('../models/WorkoutExerciseStatus');
+const { supabase } = require('../config/db');
 const ApiError = require('../utils/ApiError');
-
-// ============================================================
-// VALIDATION RULES
-// ============================================================
 
 const logStatusValidation = [
   body('workoutPlanId')
     .notEmpty()
-    .withMessage('Workout plan ID is required.')
-    .isMongoId()
-    .withMessage('Invalid workout plan ID.'),
+    .withMessage('Workout plan ID is required.'),
   body('exerciseId')
     .notEmpty()
-    .withMessage('Exercise ID is required.')
-    .isMongoId()
-    .withMessage('Invalid exercise ID.'),
+    .withMessage('Exercise ID is required.'),
   body('date')
     .notEmpty()
     .withMessage('Date is required.')
@@ -60,83 +51,110 @@ const getStatusesValidation = [
     .isISO8601()
     .withMessage('date must be a valid ISO 8601 date.'),
   query('workoutPlanId')
-    .optional()
-    .isMongoId()
-    .withMessage('Invalid workout plan ID.'),
+    .optional(),
 ];
 
-// ============================================================
-// CONTROLLER METHODS
-// ============================================================
+const mapStatus = (row) => {
+  if (!row) return null;
+  return {
+    _id: row.id,
+    id: row.id,
+    userId: row.user_id,
+    exerciseId: row.exercise_id,
+    personalRecordWeightKg: Number(row.personal_record_weight_kg || 0),
+    personalRecordReps: row.personal_record_reps || 0,
+    lastPerformedAt: row.last_performed_at,
+    totalVolumeKg: Number(row.total_volume_kg || 0),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+};
 
-/**
- * @desc    Log exercise status for the authenticated user
- * @route   POST /api/workout-exercise-status
- * @access  Private
- */
 const logExerciseStatus = async (req, res, next) => {
   try {
-    const { workoutPlanId, exerciseId, date, isCompleted, hasDiscomfort, note } = req.body;
+    const { exerciseId, personalRecordWeightKg, personalRecordReps, totalVolumeKg } = req.body;
 
-    const normalizedDate = new Date(date);
-    normalizedDate.setUTCHours(0, 0, 0, 0);
+    const { data: existing } = await supabase
+      .from('workout_exercise_statuses')
+      .select('*')
+      .eq('user_id', req.user.id)
+      .eq('exercise_id', exerciseId)
+      .maybeSingle();
 
-    // Upsert: one record per user + plan + exercise + day
-    const status = await WorkoutExerciseStatus.findOneAndUpdate(
-      {
-        userId: req.user._id,
-        workoutPlanId,
-        exerciseId,
-        date: normalizedDate,
-      },
-      {
-        userId: req.user._id,
-        workoutPlanId,
-        exerciseId,
-        date: normalizedDate,
-        ...(isCompleted !== undefined && { isCompleted }),
-        ...(hasDiscomfort !== undefined && { hasDiscomfort }),
-        ...(note !== undefined && { note }),
-      },
-      { upsert: true, new: true, runValidators: true }
-    );
+    let updatedRow;
+    const now = new Date().toISOString();
+
+    if (existing) {
+      const { data, error } = await supabase
+        .from('workout_exercise_statuses')
+        .update({
+          personal_record_weight_kg: personalRecordWeightKg ?? existing.personal_record_weight_kg,
+          personal_record_reps: personalRecordReps ?? existing.personal_record_reps,
+          total_volume_kg: totalVolumeKg ?? existing.total_volume_kg,
+          last_performed_at: now,
+          updated_at: now,
+        })
+        .eq('id', existing.id)
+        .select()
+        .single();
+
+      if (error) throw new ApiError(500, `Database error: ${error.message}`);
+      updatedRow = data;
+    } else {
+      const { data, error } = await supabase
+        .from('workout_exercise_statuses')
+        .insert([
+          {
+            user_id: req.user.id,
+            exercise_id: exerciseId,
+            personal_record_weight_kg: personalRecordWeightKg || 0,
+            personal_record_reps: personalRecordReps || 0,
+            total_volume_kg: totalVolumeKg || 0,
+            last_performed_at: now,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) throw new ApiError(500, `Database error: ${error.message}`);
+      updatedRow = data;
+    }
 
     res.status(201).json({
       success: true,
       message: 'Exercise status logged.',
-      data: { status },
+      data: { status: mapStatus(updatedRow) },
     });
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * @desc    Get exercise statuses for the authenticated user
- * @route   GET /api/workout-exercise-status
- * @access  Private
- * @query   date (ISO date), workoutPlanId
- */
 const getExerciseStatuses = async (req, res, next) => {
   try {
-    const filter = { userId: req.user._id };
+    let query = supabase
+      .from('workout_exercise_statuses')
+      .select('*, exercises(id, name, target_muscle, category)')
+      .eq('user_id', req.user.id)
+      .order('updated_at', { ascending: false });
 
-    if (req.query.date) {
-      const day = new Date(req.query.date);
-      day.setUTCHours(0, 0, 0, 0);
-      const nextDay = new Date(day);
-      nextDay.setUTCDate(nextDay.getUTCDate() + 1);
-      filter.date = { $gte: day, $lt: nextDay };
+    const { data: rows, error } = await query;
+
+    if (error) {
+      throw new ApiError(500, `Database error: ${error.message}`);
     }
 
-    if (req.query.workoutPlanId) {
-      filter.workoutPlanId = req.query.workoutPlanId;
-    }
-
-    const statuses = await WorkoutExerciseStatus.find(filter)
-      .populate('exerciseId', 'name muscleGroup')
-      .populate('workoutPlanId', 'name dayLabel')
-      .sort({ date: -1 });
+    const statuses = (rows || []).map((r) => ({
+      ...mapStatus(r),
+      exerciseId: r.exercises
+        ? {
+            _id: r.exercises.id,
+            id: r.exercises.id,
+            name: r.exercises.name,
+            muscleGroup: r.exercises.target_muscle || r.exercises.category,
+          }
+        : r.exercise_id,
+    }));
 
     res.status(200).json({
       success: true,
@@ -148,40 +166,38 @@ const getExerciseStatuses = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Update an exercise status record
- * @route   PATCH /api/workout-exercise-status/:id
- * @access  Private
- */
 const updateExerciseStatus = async (req, res, next) => {
   try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      throw new ApiError(400, 'Invalid status ID.');
-    }
+    const { personalRecordWeightKg, personalRecordReps, totalVolumeKg } = req.body;
 
-    const allowedFields = ['isCompleted', 'hasDiscomfort', 'note'];
-    const updates = {};
-    allowedFields.forEach((field) => {
-      if (req.body[field] !== undefined) {
-        updates[field] = req.body[field];
-      }
-    });
+    const updates = { updated_at: new Date().toISOString() };
+    if (personalRecordWeightKg !== undefined) updates.personal_record_weight_kg = personalRecordWeightKg;
+    if (personalRecordReps !== undefined) updates.personal_record_reps = personalRecordReps;
+    if (totalVolumeKg !== undefined) updates.total_volume_kg = totalVolumeKg;
 
-    if (Object.keys(updates).length === 0) {
-      throw new ApiError(400, 'No valid fields to update.');
-    }
+    const { data: updatedRow, error } = await supabase
+      .from('workout_exercise_statuses')
+      .update(updates)
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .select('*, exercises(id, name, target_muscle, category)')
+      .single();
 
-    const status = await WorkoutExerciseStatus.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user._id },
-      updates,
-      { new: true, runValidators: true }
-    )
-      .populate('exerciseId', 'name muscleGroup')
-      .populate('workoutPlanId', 'name dayLabel');
-
-    if (!status) {
+    if (error || !updatedRow) {
       throw new ApiError(404, 'Exercise status record not found.');
     }
+
+    const status = {
+      ...mapStatus(updatedRow),
+      exerciseId: updatedRow.exercises
+        ? {
+            _id: updatedRow.exercises.id,
+            id: updatedRow.exercises.id,
+            name: updatedRow.exercises.name,
+            muscleGroup: updatedRow.exercises.target_muscle || updatedRow.exercises.category,
+          }
+        : updatedRow.exercise_id,
+    };
 
     res.status(200).json({
       success: true,

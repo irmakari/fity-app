@@ -1,63 +1,67 @@
 const ApiError = require('../utils/ApiError');
-const User = require('../models/User');
-const MealLog = require('../models/MealLog');
-const MealItem = require('../models/MealItem');
-const Food = require('../models/Food');
+const { supabase } = require('../config/db');
 const { suggestSnack } = require('../ai/snackAI');
 
-/**
- * @desc    Suggest a smart snack based on user's remaining calories
- * @route   POST /api/snack/suggest
- * @access  Private
- */
 exports.suggestSnack = async (req, res, next) => {
   try {
     const { preference, date } = req.body;
-    const targetDate = date || new Date().toISOString().split('T')[0];
+    const targetDate = date ? new Date(date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
 
-    // 1. Get user to check goals
-    const user = await User.findById(req.user.id);
-    const dailyGoal = user.nutritionGoal?.calories || 2000;
+    const { data: goalRow } = await supabase
+      .from('nutrition_goals')
+      .select('daily_calories')
+      .eq('user_id', req.user.id)
+      .maybeSingle();
 
-    // 2. Calculate consumed calories for the given date
-    const start = new Date(targetDate);
-    start.setUTCHours(0, 0, 0, 0);
-    const end = new Date(targetDate);
-    end.setUTCHours(23, 59, 59, 999);
+    const dailyGoal = goalRow ? Number(goalRow.daily_calories) : 2000;
 
-    const mealLogs = await MealLog.find({ userId: req.user.id, date: { $gte: start, $lte: end } });
-    const logIds = mealLogs.map((log) => log._id);
-    const items = await MealItem.find({ mealLogId: { $in: logIds } });
+    const { data: mealLogs } = await supabase
+      .from('meal_logs')
+      .select('id')
+      .eq('user_id', req.user.id)
+      .eq('date', targetDate);
+
+    const logIds = (mealLogs || []).map((l) => l.id);
 
     let consumedCalories = 0;
-    items.forEach((item) => {
-      consumedCalories += item.calories || 0;
-    });
+    if (logIds.length > 0) {
+      const { data: items } = await supabase
+        .from('meal_items')
+        .select('calories')
+        .in('meal_log_id', logIds);
 
-    // 3. Calculate remaining calories
-    const remainingCalories = dailyGoal - consumedCalories;
+      (items || []).forEach((item) => {
+        consumedCalories += Number(item.calories || 0);
+      });
+    }
 
-    // 4. Generate AI Suggestion
+    const remainingCalories = Math.max(0, dailyGoal - consumedCalories);
+
     const aiSuggestion = await suggestSnack(remainingCalories, preference);
 
-    // 5. Save the suggested food to DB so user can add it easily
-    const savedFood = await Food.create({
-      name: aiSuggestion.name,
-      caloriesPerServing: aiSuggestion.caloriesPerServing,
-      proteinG: aiSuggestion.proteinG,
-      carbsG: aiSuggestion.carbsG,
-      fatG: aiSuggestion.fatG,
-      servingSize: aiSuggestion.servingSize,
-      servingUnit: aiSuggestion.servingUnit || 'porsiyon',
-      source: 'ai', // Mark as AI generated
-    });
+    const { data: savedFood } = await supabase
+      .from('foods')
+      .insert([
+        {
+          name: aiSuggestion.name,
+          calories: aiSuggestion.caloriesPerServing || aiSuggestion.calories || 0,
+          protein_g: aiSuggestion.proteinG || 0,
+          carbs_g: aiSuggestion.carbsG || 0,
+          fat_g: aiSuggestion.fatG || 0,
+          serving_size_g: aiSuggestion.servingSize || 100,
+          serving_size: aiSuggestion.servingUnit || 'porsiyon',
+          source: 'ai',
+        },
+      ])
+      .select()
+      .single();
 
     res.status(200).json({
       success: true,
       data: {
         recipe: {
           ...aiSuggestion,
-          foodId: savedFood._id, // Return ID so frontend can easily POST to /api/meal-logs/:id/items
+          foodId: savedFood ? savedFood.id : null,
         },
         context: {
           dailyGoal,

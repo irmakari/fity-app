@@ -1,43 +1,25 @@
 import { axiosInstance } from '@/services/api/axiosInstance';
 import { API_ENDPOINTS } from '@/services/api/endpoints';
-import { TFood, TNutritionGoal, TNutritionMeal, TNutritionMacros } from './nutrition.type';
 
 export class NutritionService {
-    static async getFoods(): Promise<TFood[]> {
-        const response = await axiosInstance.get<TFood[]>(API_ENDPOINTS.nutrition.foods);
-        return response.data;
+    static async getFoods(): Promise<any[]> {
+        try {
+            const response = await axiosInstance.get(API_ENDPOINTS.nutrition.foods);
+            return response.data?.data?.foods || response.data?.data || [];
+        } catch (error) {
+            console.error('getFoods error:', error);
+            return [];
+        }
     }
 
-    static async getGoal(userId: string): Promise<TNutritionGoal | null> {
-        const response = await axiosInstance.get<TNutritionGoal[]>(
-            `${API_ENDPOINTS.nutrition.nutritionGoals}?userId=${userId}`
-        );
-        return response.data[0] ?? null;
-    }
-
-    static async getMeals(userId: string): Promise<TNutritionMeal[]> {
-        const response = await axiosInstance.get<TNutritionMeal[]>(
-            `${API_ENDPOINTS.nutrition.nutritionMeals}?userId=${userId}`
-        );
-        return response.data;
-    }
-
-    static computeMacros(meals: TNutritionMeal[], foods: TFood[]): TNutritionMacros {
-        let proteinG = 0;
-        let carbsG = 0;
-        let fatG = 0;
-
-        meals.forEach(meal => {
-            meal.foods.forEach(foodName => {
-                const food = foods.find(f => f.name.toLowerCase() === foodName.toLowerCase());
-                if (food) {
-                    proteinG += food.proteinG;
-                    carbsG += food.carbsG;
-                    fatG += food.fatG;
-                }
-            });
-        });
-
-        return { proteinG, carbsG, fatG };
+    static async getDailySummary(date?: string): Promise<any> {
+        try {
+            const dateParam = date ? `?date=${date}` : '';
+            const response = await axiosInstance.get(`${API_ENDPOINTS.nutrition.summary}${dateParam}`);
+            return response.data?.data || null;
+        } catch (error) {
+            console.error('getDailySummary error:', error);
+            return null;
+        }
     }
 }
